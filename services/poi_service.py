@@ -5,13 +5,24 @@ from pathlib import Path
 # 项目根目录
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Mock POI 数据文件路径
+# POI 数据文件路径（优先使用 poi_hangzhou.json）
+POI_HANGZHOU_PATH = BASE_DIR / "data" / "poi_hangzhou.json"
 MOCK_POI_PATH = BASE_DIR / "data" / "mock_pois.json"
+
+
+def load_pois_from_file(path):
+    """
+    从指定 JSON 文件读取 POI 数据。
+    """
+    with open(path, "r", encoding="utf-8") as file:
+        data = json.load(file)
+    return data.get("pois", [])
 
 
 def load_mock_pois():
     """
-    从本地 mock_pois.json 读取 POI 数据。
+    从本地 poi_hangzhou.json 读取 POI 数据。
+    若新文件不存在则回退到 mock_pois.json。
 
     当前版本：
     - 使用本地 Mock 数据，方便开发和演示。
@@ -20,10 +31,9 @@ def load_mock_pois():
     - 可以替换为真实 POI API，例如美团、高德、Google Places 等。
     - 但返回的数据结构仍然建议保持为统一的 pois 列表。
     """
-    with open(MOCK_POI_PATH, "r", encoding="utf-8") as file:
-        data = json.load(file)
-
-    return data.get("pois", [])
+    if POI_HANGZHOU_PATH.exists():
+        return load_pois_from_file(POI_HANGZHOU_PATH)
+    return load_pois_from_file(MOCK_POI_PATH)
 
 
 def get_pois(city=None):
@@ -42,8 +52,9 @@ def get_pois(city=None):
     """
     pois = load_mock_pois()
 
-    # 当前 mock_pois.json 已经是杭州数据，因此这里暂时直接返回全部 POI。
-    # 后续如果 mock 数据包含多个城市，可以在这里按 city 过滤。
+    if city:
+        pois = [poi for poi in pois if poi.get("city") == city or city == "杭州"]
+
     return pois
 
 

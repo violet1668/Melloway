@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
   <!-- 本项目自己的页面样式 -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
 <body>
@@ -93,7 +93,7 @@
 
     <section class="panel">
       <h2>路线地图</h2>
-      <p class="map-hint">点击某个方案卡片中的“在地图中查看”，下方地图会显示该方案的 POI 点位和路线连线。</p>
+      <p class="map-hint">点击某个方案卡片中的"在地图中查看"，下方地图会显示该方案的 POI 点位和路线连线。</p>
       <div id="map"></div>
     </section>
   </main>
@@ -101,199 +101,13 @@
   <!-- Leaflet 地图功能：通过 CDN 在线加载 -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+  <!-- 本项目脚本（按依赖顺序） -->
+  <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/map.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
   <script>
-    let map = null;
-    let mapLayers = [];
-
-    function splitInput(value) {
-      return value
-        .split(",")
-        .map(item => item.trim())
-        .filter(item => item.length > 0);
-    }
-
-    function optionName(type) {
-      const names = {
-        demand_satisfaction: "需求满足方案",
-        hard_constraint: "硬约束方案",
-        preference_insight: "历史偏好洞察方案"
-      };
-      return names[type] || type;
-    }
-
-    function initMap() {
-      if (map) {
-        return;
-      }
-
-      map = L.map("map").setView([30.2741, 120.1551], 13);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors"
-      }).addTo(map);
-    }
-
-    function clearMapLayers() {
-      mapLayers.forEach(layer => {
-        map.removeLayer(layer);
-      });
-      mapLayers = [];
-    }
-
-    function showRouteOnMap(optionIndex) {
-      const option = window.latestOptions[optionIndex];
-
-      if (!option || !option.success || !option.route) {
-        alert("该方案没有可展示的路线。");
-        return;
-      }
-
-      initMap();
-      clearMapLayers();
-
-      const route = option.route;
-      const points = [];
-
-      const startLatLng = [route.start_point.lat, route.start_point.lng];
-      points.push(startLatLng);
-
-      const startMarker = L.marker(startLatLng)
-        .addTo(map)
-        .bindPopup("起点");
-
-      mapLayers.push(startMarker);
-
-      route.pois.forEach((poi, index) => {
-        const latLng = [poi.lat, poi.lng];
-        points.push(latLng);
-
-        const marker = L.marker(latLng)
-          .addTo(map)
-          .bindPopup(`${index + 1}. ${poi.name}<br>到达：${poi.arrive_time}<br>离开：${poi.leave_time}<br>人均：¥${poi.price}`);
-
-        mapLayers.push(marker);
-      });
-
-      const polyline = L.polyline(points, {
-        weight: 4
-      }).addTo(map);
-
-      mapLayers.push(polyline);
-
-      map.fitBounds(polyline.getBounds(), {
-        padding: [40, 40]
-      });
-    }
-
-    function renderOption(option, index) {
-      if (!option.success || !option.route) {
-        return `
-          <article class="card">
-            <h3>${optionName(option.type)}</h3>
-            <p>${option.summary || option.message}</p>
-          </article>
-        `;
-      }
-
-      const route = option.route;
-
-      const poiList = route.pois.map(poi => `
-        <li>
-          <strong>${poi.name}</strong>
-          <span>${poi.arrive_time} 到达，${poi.leave_time} 离开，人均 ¥${poi.price}</span>
-        </li>
-      `).join("");
-
-      const segmentList = route.segments.map(seg => `
-        <li>${seg.from} → ${seg.to}：${seg.transport}，约 ${seg.duration} 分钟，${seg.distance} km</li>
-      `).join("");
-
-      return `
-        <article class="card">
-          <h3>${optionName(option.type)}</h3>
-          <p class="summary">${option.summary}</p>
-
-          <div class="meta">
-            <span>${route.pois.length} 个 POI</span>
-            <span>约 ${route.total_time} 分钟</span>
-            <span>约 ¥${route.total_cost}</span>
-          </div>
-
-          <button class="map-button" onclick="showRouteOnMap(${index})">在地图中查看</button>
-
-          <details>
-            <summary>查看详情</summary>
-            <h4>POI 顺序</h4>
-            <ol>${poiList}</ol>
-
-            <h4>交通段</h4>
-            <ul>${segmentList}</ul>
-          </details>
-        </article>
-      `;
-    }
-
-    async function generateRoute() {
-      const status = document.getElementById("status");
-      const results = document.getElementById("results");
-
-      status.textContent = "正在生成路线...";
-      results.innerHTML = "";
-
-      const payload = {
-        start: document.getElementById("start").value,
-        user_input: document.getElementById("user_input").value,
-        preferences: {
-          city: "杭州",
-          food: splitInput(document.getElementById("food").value),
-          tags: splitInput(document.getElementById("tags").value),
-          budget: Number(document.getElementById("budget").value),
-          time_window: [
-            document.getElementById("start_time").value,
-            document.getElementById("end_time").value
-          ],
-          max_wait: Number(document.getElementById("max_wait").value),
-          duration_minutes: Number(document.getElementById("duration_minutes").value),
-          transport: document.getElementById("transport").value
-        }
-      };
-
-      const poiCountValue = document.getElementById("poi_count").value;
-      if (poiCountValue.trim() !== "") {
-        payload.preferences.poi_count = Number(poiCountValue);
-      }
-
-      try {
-        const response = await fetch("/api/generate_route", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-
-        if (!data.success) {
-          status.textContent = data.message || "路线生成失败";
-          return;
-        }
-
-        window.latestOptions = data.options;
-        status.textContent = data.message;
-        results.innerHTML = data.options.map(renderOption).join("");
-
-        const firstSuccessIndex = data.options.findIndex(option => option.success);
-        if (firstSuccessIndex >= 0) {
-          showRouteOnMap(firstSuccessIndex);
-        }
-      } catch (error) {
-        status.textContent = "请求失败：" + error.message;
-      }
-    }
-
-    document.getElementById("generateBtn").addEventListener("click", generateRoute);
+    // 页面加载时初始化地图
     initMap();
   </script>
 </body>
