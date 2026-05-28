@@ -1,0 +1,25 @@
+{
+  "user_id": "mock_user_001",
+  "city": "杭州",
+  "profile": {
+    "travel_style": "周末轻松出游",
+    "default_companion": "friends",
+    "preferred_transport": "walk"
+  },
+  "explicit_preferences": {
+    "favorite_cuisines": ["杭帮菜", "川菜", "咖啡", "茶饮"],
+    "preferred_tags": ["安静", "小众", "本地风味", "适合聊天", "放松"],
+    "disliked_tags": ["排队久", "过度网红"],
+    "price_range": [50, 160],
+    "max_wait_preference": 25
+  },
+  "history_behavior": {
+    "visited_poi_ids": ["poi_002", "poi_004", "poi_008"],
+    "liked_poi_types": ["restaurant", "cafe", "scenic"],
+    "frequent_tags": ["朋友聚餐", "安静", "散步", "本地风味"],
+    "avoid_poi_ids": ["poi_006"]
+  },
+  "llm_input_ready": {
+    "note": "当前版本由规则模拟历史偏好洞察。后续接入真实 LLM 时，可以将 profile、explicit_preferences、history_behavior 作为模型输入。"
+  }
+}

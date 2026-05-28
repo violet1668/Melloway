@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 
-from route_engine import generate_route_plan
+from services.route_engine import generate_route_plan
 
 
 app = Flask(__name__)
@@ -20,14 +20,30 @@ def index():
 @app.route("/api/generate_route", methods=["POST"])
 def api_generate_route():
     """
-    路线生成 API。
+    路线生成 API（旧接口，保留向后兼容）。
 
     前端会把用户输入的起点、预算、时间、偏好等信息发到这里。
-    这个接口再调用 route_engine.py 中的 generate_route_plan()，
+    这个接口再调用 route_engine 中的 generate_route_plan()，
     最后把三方案路线结果以 JSON 格式返回给前端。
     """
+    return _handle_route_generation(request)
+
+
+@app.route("/api/routes/generate", methods=["POST"])
+def api_routes_generate():
+    """
+    路线生成 API（新接口）。
+
+    与旧接口 /api/generate_route 功能相同，
+    但路径更规范，响应格式统一。
+    """
+    return _handle_route_generation(request)
+
+
+def _handle_route_generation(flask_request):
+    """处理路线生成的公共逻辑。"""
     try:
-        user_request = request.get_json()
+        user_request = flask_request.get_json()
 
         if not user_request:
             return jsonify({

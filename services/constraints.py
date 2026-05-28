@@ -1,0 +1,207 @@
+import math
+from datetime import datetime
+
+
+def parse_start_point(start):
+    """
+    解析用户输入的起点坐标。
+
+    兼容两种格式：
+
+    旧格式：
+    "120.1551,30.2741"
+
+    新格式：
+    {
+        "type": "coordinate",
+        "lng": 120.1551,
+        "lat": 30.2741,
+        "name": "武林广场"
+    }
+
+    返回：
+    {
+        "lng": 120.1551,
+        "lat": 30.2741,
+        "name": "武林广场"  # 如果有 name 就保留
+    }
+    """
+    # 新接口格式：start 是一个对象
+    if isinstance(start, dict):
+        try:
+            result = {
+                "lng": float(start.get("lng")),
+                "lat": float(start.get("lat"))
+            }
+
+            # name 是可选字段，用于前端展示和地图 popup
+            if start.get("name"):
+                result["name"] = start.get("name")
+
+            return result
+        except Exception:
+            raise ValueError("起点坐标格式错误，请检查 start.lng 和 start.lat 是否为数字。")
+
+    # 旧接口格式：start 是 "lng,lat" 字符串
+    if isinstance(start, str):
+        try:
+            lng_text, lat_text = start.split(",")
+            return {
+                "lng": float(lng_text.strip()),
+                "lat": float(lat_text.strip())
+            }
+        except Exception:
+            raise ValueError("起点坐标格式错误，请使用 lng,lat 格式，例如 120.1551,30.2741")
+
+    raise ValueError("起点格式错误，请使用坐标字符串或 start 对象。")
+
+
+
+def estimate_travel_minutes(distance_km, transport):
+    """
+    根据距离和出行方式估算交通时间。
+
+    walk：约 4.5 km/h
+    bike：约 12 km/h
+    drive：约 25 km/h
+    """
+    speed_map = {
+        "walk": 4.5,
+        "bike": 12,
+        "drive": 25
+    }
+
+    speed = speed_map.get(transport, 4.5)
+    return max(1, int(distance_km / speed * 60))
+
+
+def haversine_km(lng1, lat1, lng2, lat2):
+    """
+    使用 Haversine 公式计算两个经纬度点之间的直线距离，单位为公里。
+
+    这里不是精确导航距离，但足够用于 MVP 阶段的路线排序和范围过滤。
+    """
+    radius = 6371
+
+    lng1, lat1, lng2, lat2 = map(math.radians, [lng1, lat1, lng2, lat2])
+
+    d_lng = lng2 - lng1
+    d_lat = lat2 - lat1
+
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(d_lng / 2) ** 2
+    )
+    c = 2 * math.asin(math.sqrt(a))
+
+    return radius * c
+
+
+def infer_search_radius_km(duration_minutes, transport):
+    """
+    根据预计游玩时长和出行方式，动态推导地点搜索范围。
+
+    逻辑：
+    - 时间越短，范围越小；
+    - 步行范围最小；
+    - 骑行和驾车范围更大；
+    - 避免固定写死 8 公里。
+    """
+    if duration_minutes <= 120:
+        base_radius = 2.5
+    elif duration_minutes <= 240:
+        base_radius = 4.5
+    elif duration_minutes <= 360:
+        base_radius = 7
+    else:
+        base_radius = 10
+
+    multiplier = {
+        "walk": 1.0,
+        "bike": 1.8,
+        "drive": 3.0
+    }.get(transport, 1.0)
+
+    return base_radius * multiplier
+
+
+def parse_time(time_text):
+    """
+    将 HH:MM 格式的时间转换为 datetime 对象。
+    日期不重要，只用于比较当天时间。
+    """
+    return datetime.strptime(time_text, "%H:%M")
+
+
+def is_open_during_visit(poi, arrive_time_text):
+    """
+    判断 POI 在预计到达时间是否营业。
+    """
+    arrive = parse_time(arrive_time_text)
+    open_time = parse_time(poi["open_time"])
+    close_time = parse_time(poi["close_time"])
+
+    return open_time <= arrive <= close_time
+
+
+def filter_pois(pois, start_point, preferences, option_type):
+    """
+    根据不同方案过滤 POI。
+
+    hard_constraint：
+    - 严格满足预算、排队、营业时间、距离范围。
+
+    demand_satisfaction：
+    - 更重视用户输入需求和体验，可以适度放宽预算和排队条件。
+
+    preference_insight：
+    - 在硬约束基础上结合历史偏好。
+    """
+    budget = preferences.get("budget", 300)
+    max_wait = preferences.get("max_wait", 30)
+    time_window = preferences.get("time_window", ["10:00", "18:00"])
+    duration_minutes = preferences.get("duration_minutes", 240)
+    transport = preferences.get("transport", "walk")
+
+    search_radius_km = infer_search_radius_km(duration_minutes, transport)
+    start_time = time_window[0]
+
+    filtered = []
+
+    for poi in pois:
+        distance_from_start = haversine_km(
+            start_point["lng"],
+            start_point["lat"],
+            poi["lng"],
+            poi["lat"]
+        )
+
+        poi = dict(poi)
+        poi["distance_from_start_km"] = round(distance_from_start, 2)
+
+        if distance_from_start > search_radius_km:
+            continue
+
+        if not is_open_during_visit(poi, start_time):
+            continue
+
+        if option_type == "hard_constraint" or option_type == "preference_insight":
+            if poi.get("price", 0) > budget:
+                continue
+
+            if poi.get("wait_time", 0) > max_wait:
+                continue
+
+        if option_type == "demand_satisfaction":
+            relaxed_budget = budget * 1.25
+            relaxed_wait = max_wait + 15
+
+            if poi.get("price", 0) > relaxed_budget:
+                continue
+
+            if poi.get("wait_time", 0) > relaxed_wait:
+                continue
+
+        filtered.append(poi)
+
+    return filtered
