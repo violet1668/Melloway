@@ -2,113 +2,222 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI 本地路线智能规划系统</title>
-
-  <!-- Leaflet 地图样式：通过 CDN 在线加载 -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-
-  <!-- 本项目自己的页面样式 -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
 <body>
   <main class="page">
+    <!-- Hero 区域 -->
     <section class="hero">
-      <h1>AI 本地路线智能规划系统</h1>
-      <p>核心引擎 MVP：输入起点与偏好，自动生成三种杭州本地路线方案。</p>
+      <div class="hero-left">
+        <h1>AI 本地路线智能规划</h1>
+        <p class="hero-tagline">吃什么、去哪逛、排多久、花多少，都在一条路线里安排好。</p>
+        <p class="hero-desc">输入你的出行想法，自动生成多条本地路线。</p>
+        <button class="hero-cta" onclick="scrollToInput()">开始规划</button>
+      </div>
+      <div class="hero-right">
+        <svg class="hero-illustration" viewBox="0 0 300 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- 网格线 -->
+          <line x1="0" y1="50" x2="300" y2="50" stroke="currentColor" stroke-width="0.5" opacity="0.05"/>
+          <line x1="0" y1="100" x2="300" y2="100" stroke="currentColor" stroke-width="0.5" opacity="0.05"/>
+          <line x1="0" y1="150" x2="300" y2="150" stroke="currentColor" stroke-width="0.5" opacity="0.05"/>
+          <line x1="75" y1="0" x2="75" y2="200" stroke="currentColor" stroke-width="0.5" opacity="0.04"/>
+          <line x1="150" y1="0" x2="150" y2="200" stroke="currentColor" stroke-width="0.5" opacity="0.04"/>
+          <line x1="225" y1="0" x2="225" y2="200" stroke="currentColor" stroke-width="0.5" opacity="0.04"/>
+
+          <!-- 唯一连续主路径：S 型曲线，起点左下 → 终点右上 -->
+          <path class="hero-route-path"
+            d="M 30 165 C 90 165, 100 85, 160 85 C 220 85, 230 145, 275 45"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none" pathLength="100"/>
+
+          <!-- 移动光点 -->
+          <circle class="hero-travel-dot" cx="30" cy="165" r="4.5" fill="currentColor" opacity="0"/>
+
+          <!-- 起点 -->
+          <circle class="hero-route-node hero-node-start" cx="30" cy="165" r="7" fill="currentColor" opacity="0"/>
+          <!-- 中间节点 -->
+          <circle class="hero-route-node hero-node-a" cx="100" cy="122" r="5" fill="currentColor" opacity="0"/>
+          <circle class="hero-route-node hero-node-b" cx="160" cy="85" r="5" fill="currentColor" opacity="0"/>
+          <circle class="hero-route-node hero-node-c" cx="220" cy="103" r="5" fill="currentColor" opacity="0"/>
+          <!-- 终点 -->
+          <circle class="hero-route-node hero-node-end" cx="275" cy="45" r="7" fill="currentColor" opacity="0"/>
+        </svg>
+      </div>
     </section>
 
-    <section class="panel">
-      <h2>输入出行需求</h2>
+    <!-- 输入区 — Bento Grid -->
+    <section class="planner-section" id="inputSection">
+      <div class="section-label">规划路线</div>
+      <div class="bento-grid">
 
-      <div class="form-grid">
-        <label>
-          起点坐标 lng,lat
-          <input id="start" value="120.1551,30.2741">
-        </label>
+        <!-- 主输入卡片 -->
+        <div class="bento-card bento-main">
+          <div class="prompt-header">
+            <span class="bento-emoji prompt-emoji">&#x1F31F;</span>
+            <div class="prompt-title">
+              <h3>今天想怎么玩？</h3>
+              <p class="prompt-subtitle">告诉AI你的出行想法，获得专属路线规划</p>
+            </div>
+          </div>
 
-        <label>
-          用户意图
-          <input id="user_input" value="周末想在杭州轻松逛逛，吃点本地特色">
-        </label>
+          <div class="prompt-input-wrapper">
+            <textarea
+              id="user_input"
+              class="prompt-input"
+              placeholder="比如：周末想在杭州轻松逛逛，吃点本地特色，再找一家咖啡店坐坐，最好不排队..."
+              rows="3">周末想在杭州轻松逛逛，吃点本地特色</textarea>
+            <div class="input-glow"></div>
+          </div>
 
-        <label>
-          菜系偏好
-          <input id="food" value="杭帮菜">
-        </label>
+          <div class="prompt-preferences">
+            <p class="preference-label">快捷偏好</p>
+            <div class="preference-chips">
+              <span class="chip active" data-value="本地风味">本地风味</span>
+              <span class="chip active" data-value="放松">放松</span>
+              <span class="chip" data-value="川菜">川菜</span>
+              <span class="chip" data-value="杭帮菜">杭帮菜</span>
+              <span class="chip" data-value="咖啡">咖啡</span>
+              <span class="chip" data-value="书店">书店</span>
+              <span class="chip" data-value="景点">景点</span>
+              <span class="chip" data-value="citywalk">citywalk</span>
+            </div>
+          </div>
 
-        <label>
-          偏好标签
-          <input id="tags" value="本地风味,放松">
-        </label>
+          <div class="prompt-footer">
+            <button class="generate-btn" id="generateBtn" onclick="generateRoute()">
+              <span class="btn-text">生成我的路线</span>
+              <span class="btn-loading" style="display: none;">正在生成路线...</span>
+            </button>
+          </div>
+        </div>
 
-        <label>
-          预算上限（元）
-          <input id="budget" type="number" value="300">
-        </label>
-
-        <label>
-          最大排队时间（分钟）
-          <input id="max_wait" type="number" value="30">
-        </label>
-
-        <label>
-          开始时间
-          <input id="start_time" value="10:00">
-        </label>
-
-        <label>
-          结束时间
-          <input id="end_time" value="18:00">
-        </label>
-
-        <label>
-          预计游玩时长（分钟）
-          <input id="duration_minutes" type="number" value="240">
-        </label>
-
-        <label>
-          希望 POI 数量（可不填，系统自动计算）
-          <input id="poi_count" type="number" placeholder="例如 3">
-        </label>
-
-        <label>
-          出行方式
-          <select id="transport">
-            <option value="walk">步行</option>
-            <option value="bike">骑行</option>
-            <option value="drive">驾车</option>
+        <!-- 起点卡片 -->
+        <div class="bento-card bento-start">
+          <span class="bento-emoji">&#x1F4CD;</span>
+          <h3>从哪里出发？</h3>
+          <select id="startSelect" onchange="onStartChange()">
+            <option value="120.1646,30.2552">湖滨银泰</option>
+            <option value="120.1499,30.2617">西湖断桥</option>
+            <option value="120.1630,30.2768">武林广场</option>
+            <option value="120.2120,30.2917">杭州东站</option>
+            <option value="120.1666,30.2586">龙翔桥</option>
+            <option value="120.0648,30.2702">西溪湿地</option>
+            <option value="120.2099,30.2460">钱江新城</option>
+            <option value="120.2105,30.2082">滨江宝龙城</option>
+            <option value="120.1428,30.3205">拱宸桥</option>
+            <option value="120.1244,30.2659">浙大玉泉校区</option>
           </select>
-        </label>
+          <input id="start" type="hidden" value="120.1646,30.2552">
+        </div>
+
+        <!-- 时间卡片 -->
+        <div class="bento-card bento-time">
+          <span class="bento-emoji">&#x23F1;</span>
+          <h3>游玩时长</h3>
+          <div class="chip-group" id="durationChips">
+            <span class="chip" data-value="120">2 小时</span>
+            <span class="chip active" data-value="240">4 小时</span>
+            <span class="chip" data-value="360">6 小时</span>
+            <span class="chip" data-value="480">8 小时</span>
+          </div>
+          <input id="duration_minutes" type="hidden" value="240">
+        </div>
+
+        <!-- 预算卡片 -->
+        <div class="bento-card bento-budget">
+          <span class="bento-emoji">&#x1F4B0;</span>
+          <h3>预算范围</h3>
+          <div class="chip-group" id="budgetChips">
+            <span class="chip" data-value="100">¥100</span>
+            <span class="chip" data-value="200">¥200</span>
+            <span class="chip active" data-value="300">¥300</span>
+            <span class="chip" data-value="500">¥500</span>
+            <span class="chip" data-value="800">¥800</span>
+          </div>
+          <input id="budget" type="hidden" value="300">
+        </div>
+
+        <!-- 排队卡片 -->
+        <div class="bento-card bento-wait">
+          <span class="bento-emoji">&#x23F3;</span>
+          <h3>排队接受度</h3>
+          <div class="chip-group" id="waitChips">
+            <span class="chip" data-value="0">尽量不排</span>
+            <span class="chip" data-value="15">最多 15 分钟</span>
+            <span class="chip active" data-value="30">最多 30 分钟</span>
+            <span class="chip" data-value="60">可以等</span>
+          </div>
+          <input id="max_wait" type="hidden" value="30">
+        </div>
+
+        <!-- AI 能力卡片 -->
+        <div class="bento-card bento-features">
+          <span class="bento-emoji">&#x1F9E0;</span>
+          <h3>AI 路线引擎</h3>
+          <ul class="feature-list">
+            <li>综合预算、排队与偏好</li>
+            <li>生成三种可比较方案</li>
+            <li>点击查看动态路线地图</li>
+          </ul>
+        </div>
       </div>
 
-      <button id="generateBtn">生成路线</button>
-      <p id="status"></p>
+      <!-- 隐藏高级字段 -->
+      <input id="food" type="hidden" value="杭帮菜">
+      <input id="start_time" type="hidden" value="10:00">
+      <input id="end_time" type="hidden" value="18:00">
+      <input id="transport" type="hidden" value="walk">
+      <input id="poi_count" type="hidden" value="">
+      <input id="tags" type="hidden" value="本地风味,放松">
+
+      <p class="status" id="status"></p>
     </section>
 
-    <section class="panel">
-      <h2>三方案结果</h2>
-      <div id="results" class="cards"></div>
+    <!-- 结果卡片区 -->
+    <section class="results-section" id="resultsSection" style="display: none;">
+      <div class="section-label">路线方案</div>
+      <h2 class="results-heading">为你生成三种方案</h2>
+      <div class="cards" id="results"></div>
     </section>
 
-    <section class="panel">
-      <h2>路线地图</h2>
-      <p class="map-hint">点击某个方案卡片中的"在地图中查看"，下方地图会显示该方案的 POI 点位和路线连线。</p>
-      <div id="map"></div>
+    <!-- 详情与地图区 -->
+    <section class="detail-section" id="detailSection" style="display: none;">
+      <div class="detail-header">
+        <button class="back-btn" onclick="closeDetail()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          返回
+        </button>
+        <h3 id="detailTitle">路线详情</h3>
+      </div>
+
+      <div class="detail-content">
+        <div class="detail-info">
+          <div class="detail-summary" id="detailSummary"></div>
+          <div class="detail-metrics" id="detailMetrics"></div>
+          <div class="detail-pois" id="detailPois"></div>
+        </div>
+        <div class="detail-map">
+          <div id="map"></div>
+        </div>
+      </div>
     </section>
   </main>
 
-  <!-- Leaflet 地图功能：通过 CDN 在线加载 -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- 本项目脚本（按依赖顺序） -->
   <script src="{{ url_for('static', filename='js/config.js') }}"></script>
   <script src="{{ url_for('static', filename='js/map.js') }}"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
   <script>
-    // 页面加载时初始化地图
-    initMap();
+    function scrollToInput() {
+      document.getElementById('inputSection').scrollIntoView({ behavior: 'smooth' });
+    }
+    function onStartChange() {
+      document.getElementById('start').value = document.getElementById('startSelect').value;
+    }
   </script>
 </body>
 </html>
