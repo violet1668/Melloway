@@ -1,65 +1,289 @@
-// 全局状态
-let map = null;
-let mapLayers = [];
+// ========== 结果显示 ==========
 
-function splitInput(value) {
-  return value
-    .split(",")
-    .map(item => item.trim())
-    .filter(item => item.length > 0);
+// ========== Chips 初始化 ==========
+
+function initChipGroup(chipContainer, hiddenInput) {
+  if (!chipContainer || !hiddenInput) return;
+
+  const chips = chipContainer.querySelectorAll('.chip');
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chipContainer.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      hiddenInput.value = chip.dataset.value;
+    });
+  });
 }
 
+function initPreferenceChips() {
+  const container = document.querySelector('.preference-chips');
+  if (!container) return;
+
+  const chips = container.querySelectorAll('.chip');
+  const selectedValues = new Set();
+  const tagsInput = document.getElementById('tags');
+
+  chips.forEach(chip => {
+    if (chip.classList.contains('active')) {
+      selectedValues.add(chip.dataset.value);
+    }
+  });
+
+  if (tagsInput) tagsInput.value = Array.from(selectedValues).join(',');
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chip.classList.toggle('active');
+      const value = chip.dataset.value;
+
+      if (chip.classList.contains('active')) {
+        selectedValues.add(value);
+      } else {
+        selectedValues.delete(value);
+      }
+
+      if (tagsInput) tagsInput.value = Array.from(selectedValues).join(',');
+    });
+  });
+}
+
+function splitInput(value) {
+  if (!value) return [];
+  return value.split(",").map(s => s.trim()).filter(s => s.length > 0);
+}
+
+// ========== SVG 路线预览生成 ==========
+
+function generateMiniRouteSVG(planType, pois) {
+  if (!pois || pois.length === 0) {
+    return '<div class="back-canvas-empty">暂无路线信息</div>';
+  }
+
+  const displayPois = pois.slice(0, 4);
+  const hasMore = pois.length > 4;
+  const nodeCount = displayPois.length; // 只包含 POI，不包含额外起点和终点
+
+  const W = 290, H = 160;
+  const padX = 28, endX = W - 28;
+  const baseY = H / 2;
+
+  // 节点分布：x 均匀推进，y 交错但幅度克制
+  const pts = [];
+  for (let i = 0; i < nodeCount; i++) {
+    const t = nodeCount <= 1 ? 0.5 : i / (nodeCount - 1);
+    const x = padX + t * (endX - padX);
+    // 幅度控制在 ±16px，形成自然城市路线感
+    const offsets = [0, -16, 14, -12, 16];
+    const y = baseY + (offsets[i] || 0);
+    pts.push({ x, y });
+  }
+
+  const routeColor = planType === 'hard_constraint' ? '#64748b' :
+                     planType === 'preference_insight' ? '#c88b2a' : '#ca8a04';
+
+  // Catmull-Rom → Cubic Bézier：整体连续平滑曲线，无独立拱桥
+  let pathD = `M${pts[0].x} ${pts[0].y}`;
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+
+    let cp1x, cp1y, cp2x, cp2y;
+
+    if (i === 0) {
+      // 首段：单侧切线
+      cp1x = p1.x + (p2.x - p1.x) / 3;
+      cp1y = p1.y + (p2.y - p1.y) / 3;
+      cp2x = p2.x - (p3.x - p1.x) / 6;
+      cp2y = p2.y - (p3.y - p1.y) / 6;
+    } else if (i === pts.length - 2) {
+      // 末段：单侧切线
+      cp1x = p1.x + (p2.x - p0.x) / 6;
+      cp1y = p1.y + (p2.y - p0.y) / 6;
+      cp2x = p2.x - (p2.x - p1.x) / 3;
+      cp2y = p2.y - (p2.y - p1.y) / 3;
+    } else {
+      // 中间段：标准 Catmull-Rom
+      cp1x = p1.x + (p2.x - p0.x) / 6;
+      cp1y = p1.y + (p2.y - p0.y) / 6;
+      cp2x = p2.x - (p3.x - p1.x) / 6;
+      cp2y = p2.y - (p3.y - p1.y) / 6;
+    }
+
+    pathD += ` C${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y}`;
+  }
+
+  let svgParts = '';
+
+  // 主路径
+  svgParts += `<path d="${pathD}" class="rb-path-main" stroke="${routeColor}" stroke-width="2"
+    stroke-linecap="round" fill="none" pathLength="100"/>`;
+
+  // 只显示 POI 节点，编号与 stop list 一致
+  const textColor = '#ffffff';
+
+  displayPois.forEach((poi, idx) => {
+    const p = pts[idx];
+    const delay = 0.4 + idx * 0.4;
+    const num = idx + 1; // 从 1 开始编号
+
+    svgParts += `
+      <g class="rb-node-group" style="animation-delay: ${delay}s;">
+        <circle cx="${p.x}" cy="${p.y}" r="9" fill="${routeColor}"/>
+        <text x="${p.x}" y="${p.y}" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="700" fill="${textColor}">${num}</text>
+      </g>
+    `;
+  });
+
+  // 完整编号列表 (与路线图编号对应)
+  const stopListHtml = displayPois.map((poi, i) => {
+    const num = i + 1; // 从 1 开始编号
+    return `
+      <span class="back-stop-item" style="animation-delay: ${1.6 + i * 0.12}s;">
+        <span class="back-stop-num">${num}</span>${poi.name}
+      </span>
+    `;
+  }).join('');
+
+  return `
+    <div class="back-canvas">
+      <svg class="back-route-svg" viewBox="0 0 ${W} ${H}" fill="none" xmlns="http://www.w3.org/2000/svg">
+        ${svgParts}
+      </svg>
+    </div>
+    <div class="back-stops">${stopListHtml}</div>
+    ${hasMore ? '<div class="back-more">+ ' + (pois.length - 4) + ' 个更多地点</div>' : ''}
+  `;
+}
+
+// ========== 卡片渲染 ==========
+
 function renderOption(option, index) {
+  const cardId = `card-${index}`;
+  const themeClass = PLAN_THEMES[option.type] || 'theme-warm';
+
   if (!option.success || !option.route) {
     return `
-      <article class="card">
-        <h3>${optionName(option.type)}</h3>
-        <p>${option.summary || option.message}</p>
-      </article>
+      <div class="flip-card" data-index="${index}" id="${cardId}">
+        <div class="flip-card-inner">
+          <div class="flip-card-front">
+            <h3>${optionName(option.type)}</h3>
+            <p class="summary">${option.summary || option.message || '暂无方案'}</p>
+            <div class="meta"><span>不可用</span></div>
+          </div>
+          <div class="flip-card-back ${themeClass}"><div class="back-empty">该方案不可用</div></div>
+        </div>
+      </div>
     `;
   }
 
   const route = option.route;
+  const planName = optionName(option.type);
+  const totalWait = route.total_wait_time || 0;
+  const shortSummary = option.summary.length > 20 ? option.summary.slice(0, 20) + '…' : option.summary;
 
-  const poiList = route.pois.map(poi => `
-    <li>
-      <strong>${poi.name}</strong>
-      <span>${poi.arrive_time} 到达，${poi.leave_time} 离开，人均 ¥${poi.price}</span>
-    </li>
-  `).join("");
-
-  const segmentList = route.segments.map(seg => `
-    <li>${seg.from} → ${seg.to}：${seg.transport}，约 ${seg.duration} 分钟，${seg.distance} km</li>
-  `).join("");
+  const routeSvgHtml = generateMiniRouteSVG(option.type, route.pois);
 
   return `
-    <article class="card">
-      <h3>${optionName(option.type)}</h3>
-      <p class="summary">${option.summary}</p>
+    <div class="flip-card" data-index="${index}" id="${cardId}">
+      <div class="flip-card-inner">
+        <!-- 正面 -->
+        <div class="flip-card-front">
+          <h3>${planName}</h3>
+          <p class="summary">${option.summary}</p>
+          <div class="meta">
+            <span>${route.pois.length} 个地点</span>
+            <span>约 ${route.total_time} 分钟</span>
+            <span>约 ¥${route.total_cost}</span>
+            ${totalWait > 0 ? `<span>排队约 ${totalWait} 分钟</span>` : ''}
+          </div>
+          <button class="btn-mobile-full-route" onclick="showFullRoute(${index}, event)">查看完整路线</button>
+        </div>
 
-      <div class="meta">
-        <span>${route.pois.length} 个 POI</span>
-        <span>约 ${route.total_time} 分钟</span>
-        <span>约 ¥${route.total_cost}</span>
+        <!-- 背面：三段式结构 -->
+        <div class="flip-card-back ${themeClass}">
+          <!-- 1. 顶部信息头 -->
+          <div class="back-header">
+            <span class="back-badge">${planName}</span>
+            <p class="back-summary">${shortSummary}</p>
+            <div class="back-metrics">
+              <span>${route.total_time} 分钟</span>
+              <span>¥${route.total_cost}</span>
+              ${totalWait > 0 ? `<span>排队 ${totalWait} 分钟</span>` : ''}
+            </div>
+          </div>
+
+          <!-- 2. 中间路线画布 -->
+          ${routeSvgHtml}
+
+          <!-- 3. 底部操作区 -->
+          <div class="back-actions">
+            <button class="btn-full-route" onclick="showFullRoute(${index}, event)">查看完整路线</button>
+          </div>
+        </div>
       </div>
-
-      <button class="map-button" onclick="showRouteOnMap(${index})">在地图中查看</button>
-
-      <details>
-        <summary>查看详情</summary>
-        <h4>POI 顺序</h4>
-        <ol>${poiList}</ol>
-
-        <h4>交通段</h4>
-        <ul>${segmentList}</ul>
-      </details>
-    </article>
+    </div>
   `;
 }
+
+// ========== 完整路线详情 ==========
+
+function showFullRoute(index, event) {
+  if (event) event.stopPropagation();
+
+  const option = window.latestOptions && window.latestOptions[index];
+  if (!option || !option.success || !option.route) {
+    alert('该方案暂无详细路线信息');
+    return;
+  }
+
+  const route = option.route;
+  const detailSection = document.getElementById('detailSection');
+
+  document.getElementById('detailTitle').textContent = optionName(option.type);
+  document.getElementById('detailSummary').textContent = option.summary || '';
+
+  const metrics = [
+    { label: '途经地点', value: route.pois.length },
+    { label: '总时长', value: `${route.total_time} 分钟` },
+    { label: '总花费', value: `¥${route.total_cost}` }
+  ];
+  if (route.total_wait_time) metrics.push({ label: '预计排队', value: `${route.total_wait_time} 分钟` });
+
+  document.getElementById('detailMetrics').innerHTML = metrics.map(m =>
+    `<div class="metric-badge">${m.label}: ${m.value}</div>`
+  ).join('');
+
+  const poiListHtml = route.pois.map((poi, i) => `
+    <li>
+      <strong>${i + 1}. ${poi.name}</strong>
+      <span>到达: ${poi.arrive_time} | 离开: ${poi.leave_time} | 人均: ¥${poi.price}${poi.wait_time ? ` | 等待: ${poi.wait_time}分钟` : ''}</span>
+    </li>
+  `).join('');
+
+  document.getElementById('detailPois').innerHTML = `<h4>路线详情</h4><ul class="poi-list">${poiListHtml}</ul>`;
+
+  detailSection.style.display = 'block';
+  RouteMap.init();
+  RouteMap.showRoute(index);
+
+  setTimeout(() => {
+    detailSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function closeDetail() {
+  document.getElementById('detailSection').style.display = 'none';
+}
+
+// ========== 结果显示 ==========
 
 function displayResults(data) {
   const status = document.getElementById("status");
   const results = document.getElementById("results");
+  const resultsSection = document.getElementById("resultsSection");
 
   if (!data.success) {
     status.textContent = data.message || "路线生成失败";
@@ -69,55 +293,68 @@ function displayResults(data) {
   window.latestOptions = data.options;
   status.textContent = data.message;
   results.innerHTML = data.options.map(renderOption).join("");
+  resultsSection.style.display = "block";
 
-  const firstSuccessIndex = data.options.findIndex(option => option.success);
-  if (firstSuccessIndex >= 0) {
-    showRouteOnMap(firstSuccessIndex);
-  }
+  setTimeout(() => {
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
 }
+
+// ========== 表单数据收集 ==========
 
 function collectFormPayload() {
   const payload = {
-    start: document.getElementById("start").value,
-    user_input: document.getElementById("user_input").value,
+    start: document.getElementById("start").value || "120.1646,30.2552",
+    user_input: document.getElementById("user_input").value || "周末想在杭州轻松逛逛",
     preferences: {
       city: "杭州",
-      food: splitInput(document.getElementById("food").value),
-      tags: splitInput(document.getElementById("tags").value),
-      budget: Number(document.getElementById("budget").value),
+      food: splitInput(document.getElementById("food").value || "杭帮菜"),
+      tags: splitInput(document.getElementById("tags").value || "本地风味,放松"),
+      budget: Number(document.getElementById("budget").value) || 300,
       time_window: [
-        document.getElementById("start_time").value,
-        document.getElementById("end_time").value
+        document.getElementById("start_time").value || "10:00",
+        document.getElementById("end_time").value || "18:00"
       ],
-      max_wait: Number(document.getElementById("max_wait").value),
-      duration_minutes: Number(document.getElementById("duration_minutes").value),
-      transport: document.getElementById("transport").value
+      max_wait: Number(document.getElementById("max_wait").value) || 30,
+      duration_minutes: Number(document.getElementById("duration_minutes").value) || 240,
+      transport: document.getElementById("transport").value || "walk"
     }
   };
 
-  const poiCountValue = document.getElementById("poi_count").value;
-  if (poiCountValue.trim() !== "") {
-    payload.preferences.poi_count = Number(poiCountValue);
+  const poiCount = document.getElementById("poi_count").value;
+  if (poiCount && poiCount.trim() !== "") {
+    payload.preferences.poi_count = Number(poiCount);
   }
 
   return payload;
 }
 
+// ========== 生成路线 ==========
+
 async function generateRoute() {
   const status = document.getElementById("status");
   const results = document.getElementById("results");
+  const resultsSection = document.getElementById("resultsSection");
+  const detailSection = document.getElementById("detailSection");
+  const btn = document.getElementById("generateBtn");
+  const btnText = btn.querySelector('.btn-text');
+  const btnLoading = btn.querySelector('.btn-loading');
 
-  status.textContent = "正在生成路线...";
+  status.textContent = "";
   results.innerHTML = "";
+  resultsSection.style.display = "none";
+  detailSection.style.display = "none";
+
+  btn.disabled = true;
+  btnText.style.display = "none";
+  btnLoading.style.display = "inline";
 
   const payload = collectFormPayload();
 
   try {
     const response = await fetch(API_CONFIG.generateUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
@@ -131,7 +368,39 @@ async function generateRoute() {
     displayResults(data);
   } catch (error) {
     status.textContent = "请求失败：" + error.message;
+  } finally {
+    btn.disabled = false;
+    btnText.style.display = "inline";
+    btnLoading.style.display = "none";
   }
 }
 
-document.getElementById("generateBtn").addEventListener("click", generateRoute);
+// ========== 初始化 ==========
+
+document.addEventListener('DOMContentLoaded', () => {
+  // 初始化时长 chips
+  initChipGroup(
+    document.getElementById('durationChips'),
+    document.getElementById('duration_minutes')
+  );
+
+  // 初始化预算 chips
+  initChipGroup(
+    document.getElementById('budgetChips'),
+    document.getElementById('budget')
+  );
+
+  // 初始化排队 chips
+  initChipGroup(
+    document.getElementById('waitChips'),
+    document.getElementById('max_wait')
+  );
+
+  // 初始化偏好 chips
+  initPreferenceChips();
+});
+
+// 暴露到 window
+window.generateRoute = generateRoute;
+window.showFullRoute = showFullRoute;
+window.closeDetail = closeDetail;
