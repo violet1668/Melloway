@@ -14,6 +14,67 @@ from services.scoring import calculate_poi_score, choose_next_poi
 from services.explanation import generate_route_summary, validate_explanation
 
 
+def normalize_route_request(user_request):
+    """
+    将前端现有格式和 PRD 格式统一为路线引擎内部格式。
+    """
+    if not isinstance(user_request, dict):
+        return {
+            "start": None,
+            "preferences": {},
+            "user_input": ""
+        }
+
+    raw_preferences = user_request.get("preferences", {})
+
+    if isinstance(raw_preferences, dict):
+        preferences = dict(raw_preferences)
+        start = user_request.get("start") or user_request.get("start_location")
+        user_input = user_request.get("user_input", "")
+    else:
+        preference_items = raw_preferences if isinstance(raw_preferences, list) else []
+        preferences = {
+            "city": user_request.get("city", "杭州"),
+            "food": preference_items,
+            "tags": preference_items,
+            "budget": user_request.get("budget", 300),
+            "max_wait": user_request.get("max_wait_time", 30),
+            "duration_minutes": int(float(user_request.get("duration_hours", 4)) * 60),
+            "transport": user_request.get("transport", "walk")
+        }
+        start = user_request.get("start") or user_request.get("start_location")
+        user_input = user_request.get("user_input") or "、".join(preference_items)
+
+        if user_request.get("time_window"):
+            preferences["time_window"] = user_request.get("time_window")
+        else:
+            preferences["time_window"] = [
+                user_request.get("start_time", "10:00"),
+                user_request.get("end_time", "18:00")
+            ]
+
+        if user_request.get("poi_count") is not None:
+            preferences["poi_count"] = user_request.get("poi_count")
+
+    preferences.setdefault("city", user_request.get("city", "杭州"))
+    preferences.setdefault("budget", user_request.get("budget", 300))
+    preferences.setdefault("max_wait", user_request.get("max_wait_time", 30))
+    preferences.setdefault("duration_minutes", int(float(user_request.get("duration_hours", 4)) * 60))
+    preferences.setdefault("transport", user_request.get("transport", "walk"))
+    preferences.setdefault("time_window", user_request.get("time_window", ["10:00", "18:00"]))
+
+    if "food" not in preferences:
+        preferences["food"] = []
+    if "tags" not in preferences:
+        preferences["tags"] = []
+
+    return {
+        "start": start,
+        "preferences": preferences,
+        "user_input": user_input
+    }
+
+
 def build_route(start_point, candidate_pois, preferences, option_type, user_prefs=None):
     """
     根据候选 POI 生成路线。
@@ -188,10 +249,18 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs)
         return {
             "type": option_type,
             "name": get_option_name(option_type),
+            "plan_type": option_type,
+            "plan_name": get_option_name(option_type),
             "success": False,
             "message": fail_message,
             "route": None,
-            "summary": fail_message
+            "summary": fail_message,
+            "total_cost": 0,
+            "total_time": 0,
+            "total_wait_time": 0,
+            "pois": [],
+            "segments": [],
+            "explanation": fail_message
         }
 
     summary = generate_route_summary(option_type, route, user_prefs)
@@ -202,10 +271,18 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs)
     return {
         "type": option_type,
         "name": get_option_name(option_type),
+        "plan_type": option_type,
+        "plan_name": get_option_name(option_type),
         "success": True,
         "message": "路线生成成功",
         "route": route,
         "summary": summary,
+        "total_cost": route["total_cost"],
+        "total_time": route["total_time"],
+        "total_wait_time": route["total_wait_time"],
+        "pois": route["pois"],
+        "segments": route["segments"],
+        "explanation": summary,
         "summary_valid": is_valid_summary
     }
 
@@ -230,8 +307,9 @@ def generate_route_plan(user_request):
         }
     }
     """
-    start = user_request.get("start")
-    preferences = user_request.get("preferences", {})
+    normalized_request = normalize_route_request(user_request)
+    start = normalized_request.get("start")
+    preferences = normalized_request.get("preferences", {})
 
     if not start:
         return {
@@ -252,7 +330,7 @@ def generate_route_plan(user_request):
     pois = get_pois(city=preferences.get("city", "杭州"))
     user_prefs = load_user_profile()
 
-    user_input = user_request.get("user_input", "")
+    user_input = normalized_request.get("user_input", "")
     preference_insight = infer_user_preferences(user_input, user_prefs)
 
     option_types = [
