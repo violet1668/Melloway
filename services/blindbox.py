@@ -59,7 +59,7 @@ def normalize_theme(theme):
     if not theme:
         return "citywalk"
 
-    return THEME_ALIASES.get(str(theme).strip(), "citywalk")
+    return THEME_ALIASES.get(str(theme).strip())
 
 
 def score_blindbox_poi(poi, theme_key, strategy="theme_match"):
@@ -329,6 +329,16 @@ def generate_blindbox_route(start_point=None, preferences=None, user_prefs=None)
     preferences.setdefault("time_window", ["10:00", "18:00"])
 
     theme_key = normalize_theme(preferences.get("theme") or preferences.get("blind_box_theme"))
+    if not theme_key:
+        message = "暂不支持该盲盒主题，请选择 citywalk、吃吃喝喝、文化之旅或小众探索。"
+        return {
+            "type": "blindbox",
+            "success": False,
+            "message": message,
+            "route": None,
+            "summary": message
+        }
+
     routes = generate_three_blindbox_routes(parsed_start, preferences, theme_key)
     if len(routes) < 3:
         message = "当前盲盒主题和约束下无可用路线，请更换主题或放宽预算、时间、排队限制。"

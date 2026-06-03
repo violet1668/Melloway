@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from services.poi_service import get_pois
+from services.friends import calculate_center_point
 from services.user_service import (
     DEFAULT_BUDGET,
     DEFAULT_DURATION_MINUTES,
@@ -77,6 +78,40 @@ def build_assumptions(missing_fields):
         "missing_fields": missing_fields,
         "message": f"你没有填写{ '、'.join(field_labels) }，系统已默认按{ '、'.join(labels) }规划。"
     }
+
+
+def validate_route_constraints(preferences):
+    """
+    校验路线生成的基础数值约束。
+    """
+    try:
+        budget = float(preferences.get("budget", DEFAULT_BUDGET))
+    except (TypeError, ValueError):
+        return "请输入有效预算，预算必须是大于 0 的数字。"
+
+    try:
+        duration_minutes = int(preferences.get("duration_minutes", DEFAULT_DURATION_MINUTES))
+    except (TypeError, ValueError):
+        return "请输入有效游玩时长，游玩时长必须是大于 0 的数字。"
+
+    try:
+        max_wait = int(preferences.get("max_wait", DEFAULT_MAX_WAIT))
+    except (TypeError, ValueError):
+        return "请输入有效排队限制，排队时间不能为负数。"
+
+    if budget <= 0:
+        return "请输入有效预算，预算必须大于 0。"
+
+    if duration_minutes <= 0:
+        return "请输入有效游玩时长，游玩时长必须大于 0 分钟。"
+
+    if max_wait < 0:
+        return "请输入有效排队限制，排队时间不能为负数。"
+
+    preferences["budget"] = budget
+    preferences["duration_minutes"] = duration_minutes
+    preferences["max_wait"] = max_wait
+    return None
 
 
 def build_option_constraints(option_type, preferences):
@@ -764,6 +799,28 @@ def generate_route_plan(user_request):
     normalized_request = normalize_route_request(user_request)
     start = normalized_request.get("start")
     preferences = normalized_request.get("preferences", {})
+    mode = user_request.get("mode") if isinstance(user_request, dict) else None
+    friends_center = None
+
+    constraint_error = validate_route_constraints(preferences)
+    if constraint_error:
+        return {
+            "success": False,
+            "message": constraint_error,
+            "options": []
+        }
+
+    if mode == "friends":
+        try:
+            friends_center = calculate_center_point(user_request.get("friends_locations", []))
+        except ValueError as error:
+            return {
+                "success": False,
+                "message": str(error),
+                "options": []
+            }
+
+        start = friends_center
 
     if not start:
         return {
@@ -831,6 +888,7 @@ def generate_route_plan(user_request):
         "message": "三方案路线生成完成。" if has_success_option else "当前条件下无法生成可用路线，请调整预算、时间、排队限制或 POI 数量。",
         "city": preferences.get("city", "杭州"),
         "start_point": start_point,
+        "friends_center": friends_center,
         "preference_insight": preference_insight,
         "options": options
     }

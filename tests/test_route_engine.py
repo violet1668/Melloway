@@ -162,6 +162,48 @@ class TestRouteEngine(unittest.TestCase):
         self.assertEqual(first_success["segments"], first_success["route"]["segments"])
         self.assertEqual(first_success["explanation"], first_success["summary"])
 
+    def test_friends_mode_generates_three_options_from_center(self):
+        result = generate_route_plan({
+            "mode": "friends",
+            "friends_locations": [
+                {"name": "A", "lng": 120.1600, "lat": 30.2600},
+                {"name": "B", "lng": 120.1800, "lat": 30.2400}
+            ],
+            "budget": 260,
+            "max_wait": 30,
+            "duration_minutes": 240,
+            "transport": "walk"
+        })
+
+        self.assertTrue(result["success"])
+        self.assertIn("friends_center", result)
+        self.assertEqual(result["friends_center"]["name"], "推荐集合点")
+        self.assertEqual(len(result["options"]), 3)
+
+    def test_friends_mode_rejects_less_than_two_locations(self):
+        result = generate_route_plan({
+            "mode": "friends",
+            "friends_locations": [
+                {"name": "A", "lng": 120.1600, "lat": 30.2600}
+            ]
+        })
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["options"], [])
+        self.assertIn("至少提供 2 个朋友位置", result["message"])
+
+    def test_invalid_budget_returns_clear_message(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "preferences": {
+                "budget": -1
+            }
+        })
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["options"], [])
+        self.assertIn("预算必须大于 0", result["message"])
+
     def test_options_use_different_route_selection_strategies(self):
         result = generate_route_plan(self._differentiation_request())
 

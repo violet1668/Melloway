@@ -7,7 +7,7 @@ class TestBlindboxRoute(unittest.TestCase):
     def test_normalize_theme_supports_aliases(self):
         self.assertEqual(normalize_theme("吃吃喝喝"), "foodie")
         self.assertEqual(normalize_theme("文化之旅"), "culture")
-        self.assertEqual(normalize_theme("未知主题"), "citywalk")
+        self.assertIsNone(normalize_theme("未知主题"))
 
     def test_generate_citywalk_blindbox_route(self):
         result = generate_blindbox_route(preferences={
@@ -95,6 +95,15 @@ class TestBlindboxRoute(unittest.TestCase):
 
         self.assertFalse(result["success"])
         self.assertIn("缺少盲盒路线起点坐标", result["message"])
+
+    def test_generate_blindbox_route_rejects_unknown_theme(self):
+        result = generate_blindbox_route(preferences={
+            "theme": "未知主题",
+            "start_location": {"name": "湖滨银泰", "lng": 120.1646, "lat": 30.2552}
+        })
+
+        self.assertFalse(result["success"])
+        self.assertIn("暂不支持该盲盒主题", result["message"])
 
 
 if __name__ == "__main__":
