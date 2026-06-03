@@ -10,8 +10,143 @@ from services.constraints import (
     filter_pois,
     haversine_km,
 )
-from services.scoring import calculate_poi_score, choose_next_poi
+from services.scoring import calculate_poi_score, preference_match_score
 from services.explanation import generate_route_summary, validate_explanation
+
+
+OPTION_CONSTRAINT_POLICIES = {
+    "hard_constraint": {
+        "budget_relax_ratio": 0,
+        "wait_relax_minutes": 0,
+        "duration_relax_minutes": 0,
+        "duration_relax_ratio": 0,
+        "strategy": "严格遵守预算、排队时间和总游玩时间，优先选择低价格、低等待、短距离的稳定路线。"
+    },
+    "demand_satisfaction": {
+        "budget_relax_ratio": 0.15,
+        "wait_relax_minutes": 10,
+        "duration_relax_minutes": 30,
+        "duration_relax_ratio": 0.15,
+        "strategy": "优先满足当前显式输入的菜系、标签和兴趣点，允许在明确提示下适度放宽约束。"
+    },
+    "preference_insight": {
+        "budget_relax_ratio": 0.10,
+        "wait_relax_minutes": 8,
+        "duration_relax_minutes": 20,
+        "duration_relax_ratio": 0.10,
+        "strategy": "结合用户画像、长期偏好、UGC、小众宝藏点和本地特色，允许在明确提示下小幅放宽约束。"
+    }
+}
+
+
+def build_option_constraints(option_type, preferences):
+    """
+    计算某个方案的生效约束和可解释的放宽策略。
+    """
+    policy = OPTION_CONSTRAINT_POLICIES[option_type]
+    budget = float(preferences.get("budget", 300))
+    max_wait = int(preferences.get("max_wait", 30))
+    duration_minutes = int(preferences.get("duration_minutes", 240))
+
+    budget_extra = round(budget * policy["budget_relax_ratio"], 2)
+    wait_extra = policy["wait_relax_minutes"]
+    duration_extra = min(
+        policy["duration_relax_minutes"],
+        int(duration_minutes * policy["duration_relax_ratio"])
+    )
+
+    effective_preferences = dict(preferences)
+    effective_preferences["budget"] = budget + budget_extra
+    effective_preferences["max_wait"] = max_wait + wait_extra
+    effective_preferences["duration_minutes"] = duration_minutes + duration_extra
+
+    constraint_policy = {
+        "mode": option_type,
+        "strategy": policy["strategy"],
+        "budget_limit": round(effective_preferences["budget"], 2),
+        "max_wait_limit": effective_preferences["max_wait"],
+        "duration_minutes_limit": effective_preferences["duration_minutes"],
+        "allows_relaxation": option_type != "hard_constraint"
+    }
+
+    relaxed_constraints = {
+        "budget_extra": round(budget_extra, 2),
+        "max_wait_extra": wait_extra,
+        "duration_minutes_extra": duration_extra,
+        "original_budget": round(budget, 2),
+        "original_max_wait": max_wait,
+        "original_duration_minutes": duration_minutes
+    }
+
+    return effective_preferences, constraint_policy, relaxed_constraints
+
+
+def build_relaxation_notice(route, relaxed_constraints):
+    """
+    根据路线实际结果说明是否用到了放宽额度。
+    """
+    if not route:
+        return "该方案严格遵守你的预算、排队和时间限制。"
+
+    extra_cost = max(0, round(route.get("total_cost", 0) - relaxed_constraints["original_budget"], 2))
+    extra_time = max(0, route.get("total_time", 0) - relaxed_constraints["original_duration_minutes"])
+    max_wait = max((poi.get("wait_time", 0) for poi in route.get("pois", [])), default=0)
+    extra_wait = max(0, max_wait - relaxed_constraints["original_max_wait"])
+
+    if extra_cost == 0 and extra_time == 0 and extra_wait == 0:
+        return "该方案严格遵守你的预算、排队和时间限制。"
+
+    parts = []
+    if extra_time > 0:
+        parts.append(f"预计比原计划多 {extra_time} 分钟")
+    if extra_cost > 0:
+        parts.append(f"预算多 {extra_cost:g} 元")
+    if extra_wait > 0:
+        parts.append(f"单点最高排队时间多 {extra_wait} 分钟")
+
+    return f"这条路线为了更好满足你的偏好，{ '，'.join(parts) }。"
+
+
+def build_differentiation_reason(option_type, route, preferences, user_prefs):
+    """
+    解释当前方案的真实取舍，不使用通用空话。
+    """
+    pois = route.get("pois", []) if route else []
+    if not pois:
+        return "当前约束下没有足够 POI 形成该方案。"
+
+    if option_type == "hard_constraint":
+        avg_wait = round(sum(poi.get("wait_time", 0) for poi in pois) / len(pois), 1)
+        return f"该方案优先控制预算、排队和移动距离，路线总花费 {route['total_cost']} 元，单点平均排队约 {avg_wait} 分钟。"
+
+    if option_type == "demand_satisfaction":
+        matched = [
+            poi["name"]
+            for poi in pois
+            if preference_match_score(poi, preferences) > 0
+        ]
+        matched_text = "、".join(matched[:3]) if matched else "高评分和热门地点"
+        return f"该方案优先满足你本次输入的 food/tags 偏好，重点选择了 {matched_text}，并接受有限放宽来提高匹配度。"
+
+    explicit = user_prefs.get("explicit_preferences", {})
+    history = user_prefs.get("history_behavior", {})
+    preferred_tags = set(explicit.get("preferred_tags", []) + history.get("frequent_tags", []))
+    hidden_names = [poi["name"] for poi in pois if poi.get("is_hidden_gem")]
+    tag_hits = sorted({tag for poi in pois for tag in poi.get("tags", []) if tag in preferred_tags})
+    ugc_hits = [
+        poi["name"]
+        for poi in pois
+        if any(tag in comment for tag in preferred_tags for comment in poi.get("ugc_comments", []))
+    ]
+    signals = []
+    if hidden_names:
+        signals.append(f"小众点 { '、'.join(hidden_names[:2]) }")
+    if tag_hits:
+        signals.append(f"长期偏好标签 { '、'.join(tag_hits[:3]) }")
+    if ugc_hits:
+        signals.append(f"UGC 中被反复提到的 { '、'.join(ugc_hits[:2]) }")
+
+    return "该方案结合用户画像选择" + "，".join(signals or ["安静、本地风味和适合聊天的地点"]) + "，并降低已去过或不喜欢标签的权重。"
 
 
 def normalize_route_request(user_request):
@@ -75,7 +210,74 @@ def normalize_route_request(user_request):
     }
 
 
-def build_route(start_point, candidate_pois, preferences, option_type, user_prefs=None):
+def choose_next_poi_for_option(current_point, candidate_pois, option_type, preferences, user_prefs=None, avoid_poi_ids=None):
+    """
+    按方案目标选择下一站，让三种方案在路线层面产生真实差异。
+    """
+    best_poi = None
+    best_value = -999999
+
+    explicit = (user_prefs or {}).get("explicit_preferences", {})
+    history = (user_prefs or {}).get("history_behavior", {})
+    preferred_tags = set(explicit.get("preferred_tags", []) + history.get("frequent_tags", []))
+    disliked_tags = set(explicit.get("disliked_tags", []))
+    visited_poi_ids = set(history.get("visited_poi_ids", []))
+    avoid_poi_ids = set(avoid_poi_ids or [])
+
+    for poi in candidate_pois:
+        distance = haversine_km(
+            current_point["lng"],
+            current_point["lat"],
+            poi["lng"],
+            poi["lat"]
+        )
+
+        if option_type == "demand_satisfaction":
+            value = (
+                poi["engine_score"]
+                + preference_match_score(poi, preferences) * 0.9
+                + poi.get("popularity", 0) * 0.08
+                - distance * 5
+            )
+        elif option_type == "hard_constraint":
+            value = (
+                poi["engine_score"]
+                - distance * 12
+                - poi.get("wait_time", 0) * 1.2
+                - poi.get("price", 0) * 0.2
+            )
+        elif option_type == "preference_insight":
+            matched_history_tags = len(preferred_tags.intersection(poi.get("tags", [])))
+            disliked_hits = len(disliked_tags.intersection(poi.get("tags", [])))
+            ugc_hits = sum(
+                1 for tag in preferred_tags
+                for comment in poi.get("ugc_comments", [])
+                if tag in comment
+            )
+            value = (
+                poi["engine_score"]
+                + matched_history_tags * 10
+                + ugc_hits * 6
+                + (16 if poi.get("is_hidden_gem") else 0)
+                - max(poi.get("popularity", 0) - 75, 0) * 0.25
+                - disliked_hits * 20
+                - (30 if poi.get("id") in visited_poi_ids else 0)
+                - distance * 7
+            )
+        else:
+            value = poi["engine_score"] - distance * 8
+
+        if poi.get("id") in avoid_poi_ids:
+            value -= 18
+
+        if value > best_value:
+            best_value = value
+            best_poi = poi
+
+    return best_poi
+
+
+def build_route(start_point, candidate_pois, preferences, option_type, user_prefs=None, avoid_poi_ids=None):
     """
     根据候选 POI 生成路线。
 
@@ -93,6 +295,7 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
     duration_minutes = preferences.get("duration_minutes", 240)
     time_window = preferences.get("time_window", ["10:00", "18:00"])
     transport = preferences.get("transport", "walk")
+    budget = preferences.get("budget", 300)
 
     user_specified_poi_count = poi_count is not None and int(poi_count) > 0
 
@@ -125,7 +328,14 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
     total_distance = 0
 
     for index in range(poi_count):
-        next_poi = choose_next_poi(current_point, remaining)
+        next_poi = choose_next_poi_for_option(
+            current_point=current_point,
+            candidate_pois=remaining,
+            option_type=option_type,
+            preferences=preferences,
+            user_prefs=user_prefs,
+            avoid_poi_ids=avoid_poi_ids
+        )
 
         if not next_poi:
             break
@@ -144,8 +354,13 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
         )
 
         projected_total_time = total_time + travel_minutes + next_poi.get("wait_time", 0) + next_poi.get("stay_duration", 0)
+        projected_total_cost = total_cost + next_poi.get("price", 0)
 
         if projected_total_time > duration_minutes:
+            remaining.remove(next_poi)
+            continue
+
+        if projected_total_cost > budget:
             remaining.remove(next_poi)
             continue
 
@@ -211,16 +426,18 @@ def get_option_name(option_type):
     return option_names.get(option_type, option_type)
 
 
-def generate_one_option(option_type, start_point, preferences, pois, user_prefs):
+def generate_one_option(option_type, start_point, preferences, pois, user_prefs, avoid_poi_ids=None):
     """
     生成单个方案。
     """
-    filtered_pois = filter_pois(pois, start_point, preferences, option_type)
+    effective_preferences, constraint_policy, relaxed_constraints = build_option_constraints(option_type, preferences)
+
+    filtered_pois = filter_pois(pois, start_point, effective_preferences, option_type)
 
     for poi in filtered_pois:
         poi["engine_score"] = calculate_poi_score(
             poi,
-            preferences,
+            effective_preferences,
             user_prefs=user_prefs,
             option_type=option_type
         )
@@ -234,9 +451,10 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs)
     route = build_route(
         start_point=start_point,
         candidate_pois=filtered_pois,
-        preferences=preferences,
+        preferences=effective_preferences,
         option_type=option_type,
-        user_prefs=user_prefs
+        user_prefs=user_prefs,
+        avoid_poi_ids=avoid_poi_ids
     )
 
     if not route:
@@ -260,8 +478,19 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs)
             "total_wait_time": 0,
             "pois": [],
             "segments": [],
-            "explanation": fail_message
+            "explanation": fail_message,
+            "constraint_policy": constraint_policy,
+            "relaxed_constraints": relaxed_constraints,
+            "relaxation_notice": build_relaxation_notice(None, relaxed_constraints),
+            "differentiation_reason": "当前约束下没有足够 POI 形成该方案。"
         }
+
+    differentiation_reason = build_differentiation_reason(option_type, route, preferences, user_prefs)
+    relaxation_notice = build_relaxation_notice(route, relaxed_constraints)
+    route["constraint_policy"] = constraint_policy
+    route["relaxed_constraints"] = relaxed_constraints
+    route["relaxation_notice"] = relaxation_notice
+    route["differentiation_reason"] = differentiation_reason
 
     summary = generate_route_summary(option_type, route, user_prefs)
     is_valid_summary = validate_explanation(summary, route)
@@ -283,6 +512,10 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs)
         "pois": route["pois"],
         "segments": route["segments"],
         "explanation": summary,
+        "constraint_policy": constraint_policy,
+        "relaxed_constraints": relaxed_constraints,
+        "relaxation_notice": relaxation_notice,
+        "differentiation_reason": differentiation_reason,
         "summary_valid": is_valid_summary
     }
 
@@ -340,6 +573,7 @@ def generate_route_plan(user_request):
     ]
 
     options = []
+    used_poi_ids = set()
 
     for option_type in option_types:
         option = generate_one_option(
@@ -347,9 +581,12 @@ def generate_route_plan(user_request):
             start_point=start_point,
             preferences=preferences,
             pois=pois,
-            user_prefs=user_prefs
+            user_prefs=user_prefs,
+            avoid_poi_ids=used_poi_ids
         )
         options.append(option)
+        if option.get("success"):
+            used_poi_ids.update(poi.get("id") for poi in option.get("pois", []))
 
     has_success_option = any(option.get("success") for option in options)
 
