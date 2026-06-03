@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 
 from services.route_engine import generate_route_plan
+from services.friends import find_friends_route
 
 
 app = Flask(__name__)
@@ -38,6 +39,44 @@ def api_routes_generate():
     但路径更规范，响应格式统一。
     """
     return _handle_route_generation(request)
+
+
+@app.route("/api/friends/center", methods=["POST"])
+def api_friends_center():
+    """
+    朋友中心选址 API。
+
+    基于多个朋友位置计算推荐集合点，并在附近生成适合朋友聚会的路线。
+    """
+    try:
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({
+                "success": False,
+                "message": "请求体为空，请提交 JSON 数据。"
+            }), 400
+
+        preferences = dict(request_data.get("preferences", {}))
+        preferences["friends_locations"] = request_data.get("friends_locations", [])
+
+        for field in ["city", "budget", "max_wait", "duration_minutes", "transport", "time_window", "poi_count"]:
+            if field in request_data and field not in preferences:
+                preferences[field] = request_data[field]
+
+        result = find_friends_route(preferences=preferences)
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except ValueError as error:
+        return jsonify({
+            "success": False,
+            "message": str(error)
+        }), 400
+    except Exception as error:
+        return jsonify({
+            "success": False,
+            "message": f"服务器处理失败：{str(error)}"
+        }), 500
 
 
 def _handle_route_generation(flask_request):
