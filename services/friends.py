@@ -6,6 +6,17 @@ from services.constraints import (
     is_valid_coordinate,
 )
 from services.poi_service import get_pois
+from services.pace import (
+    build_pace_info,
+    build_pace_relaxation_notice,
+    get_adjusted_stay_duration,
+    get_base_duration_minutes,
+    get_default_poi_count,
+    get_effective_duration_minutes,
+    get_intensive_poi_count_bonus,
+    normalize_pace_preferences,
+    pace_score_adjustment,
+)
 
 
 FRIENDS_TAGS = {"朋友聚餐", "朋友聚会", "适合聊天", "轻松", "安静", "本地风味", "商圈"}
@@ -85,6 +96,8 @@ def score_friend_poi(poi, center_point, preferences, friend_locations):
     if budget:
         score -= (poi.get("price", 0) / max(budget, 1)) * 8
 
+    score += pace_score_adjustment(poi, distance_to_center, preferences)
+
     return round(score, 2)
 
 
@@ -92,7 +105,7 @@ def filter_friend_pois(pois, center_point, preferences):
     """
     按朋友中心路线的基础约束过滤 POI。
     """
-    duration_minutes = preferences.get("duration_minutes", 240)
+    duration_minutes = get_effective_duration_minutes(preferences)
     transport = preferences.get("transport", "walk")
     budget = preferences.get("budget", 300)
     max_wait = preferences.get("max_wait", 30)
@@ -128,9 +141,15 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
     if not candidate_pois:
         return None
 
-    duration_minutes = preferences.get("duration_minutes", 240)
+    duration_minutes = get_effective_duration_minutes(preferences)
     transport = preferences.get("transport", "walk")
-    poi_count = min(int(preferences.get("poi_count", 3) or 3), len(candidate_pois))
+    requested_poi_count = preferences.get("poi_count")
+    if requested_poi_count:
+        poi_count = int(requested_poi_count)
+    else:
+        poi_count = get_default_poi_count(get_base_duration_minutes(preferences))
+        poi_count += get_intensive_poi_count_bonus(preferences)
+    poi_count = min(poi_count, len(candidate_pois))
 
     selected = []
     segments = []
@@ -147,12 +166,17 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
 
         distance_km = haversine_km(current_point["lng"], current_point["lat"], poi["lng"], poi["lat"])
         travel_minutes = estimate_travel_minutes(distance_km, transport)
-        projected_total_time = total_time + travel_minutes + poi.get("wait_time", 0) + poi.get("stay_duration", 0)
+        stay_duration = get_adjusted_stay_duration(poi, preferences)
+        projected_total_time = total_time + travel_minutes + poi.get("wait_time", 0) + stay_duration
 
         if projected_total_time > duration_minutes:
             continue
 
         poi_detail = dict(poi)
+        original_stay_duration = int(poi.get("stay_duration", 0) or 0)
+        poi_detail["stay_duration"] = stay_duration
+        if stay_duration != original_stay_duration:
+            poi_detail["original_stay_duration"] = original_stay_duration
         poi_detail["friend_fairness"] = calculate_friend_fairness_score(poi, friend_locations)
         selected.append(poi_detail)
 
@@ -165,7 +189,7 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
         })
 
         total_cost += poi.get("price", 0)
-        total_time += travel_minutes + poi.get("wait_time", 0) + poi.get("stay_duration", 0)
+        total_time += travel_minutes + poi.get("wait_time", 0) + stay_duration
         total_wait_time += poi.get("wait_time", 0)
         total_travel_time += travel_minutes
         total_distance += distance_km
@@ -183,7 +207,8 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
         "total_wait_time": total_wait_time,
         "total_travel_time": total_travel_time,
         "total_distance": round(total_distance, 2),
-        "option_type": "friends"
+        "option_type": "friends",
+        "pace_info": build_pace_info(preferences)
     }
 
 
@@ -197,7 +222,7 @@ def find_friends_route(start_point=None, preferences=None, user_prefs=None):
         {"name": "B", "lng": 120.2105, "lat": 30.2082}
     ]
     """
-    preferences = dict(preferences or {})
+    preferences = normalize_pace_preferences(preferences or {})
     friend_locations = validate_friend_locations(preferences.get("friends_locations", []))
     center_point = calculate_center_point(friend_locations)
 
@@ -221,6 +246,7 @@ def find_friends_route(start_point=None, preferences=None, user_prefs=None):
             "message": "当前朋友位置和约束下无法生成合适路线，请放宽预算、时间或排队限制。",
             "center": center_point,
             "route": None,
+            "pace_info": build_pace_info(preferences),
             "summary": "当前朋友位置和约束下无法生成合适路线，请放宽预算、时间或排队限制。"
         }
 
@@ -230,6 +256,11 @@ def find_friends_route(start_point=None, preferences=None, user_prefs=None):
         f"{' → '.join(poi['name'] for poi in route['pois'])}。"
     )
 
+    relaxation_notice = (
+        build_pace_relaxation_notice(route, preferences)
+        or "该朋友中心路线遵守你的预算、排队和时间限制。"
+    )
+
     return {
         "type": "friends",
         "success": True,
@@ -237,6 +268,8 @@ def find_friends_route(start_point=None, preferences=None, user_prefs=None):
         "center": center_point,
         "route": route,
         "summary": summary,
+        "relaxation_notice": relaxation_notice,
+        "pace_info": build_pace_info(preferences),
         "pois": route["pois"],
         "segments": route["segments"],
         "total_cost": route["total_cost"],

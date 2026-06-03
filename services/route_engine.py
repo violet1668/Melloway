@@ -21,6 +21,18 @@ from services.constraints import (
 )
 from services.scoring import calculate_poi_score, preference_match_score
 from services.explanation import generate_route_summary, validate_explanation
+from services.pace import (
+    build_pace_info,
+    build_pace_relaxation_notice,
+    get_adjusted_stay_duration,
+    get_base_duration_minutes,
+    get_default_poi_count,
+    get_effective_duration_minutes,
+    get_intensive_poi_count_bonus,
+    is_intensive,
+    normalize_pace_preferences,
+    pace_score_adjustment,
+)
 
 
 OPTION_CONSTRAINT_POLICIES = {
@@ -121,19 +133,24 @@ def build_option_constraints(option_type, preferences):
     policy = OPTION_CONSTRAINT_POLICIES[option_type]
     budget = float(preferences.get("budget", 300))
     max_wait = int(preferences.get("max_wait", 30))
-    duration_minutes = int(preferences.get("duration_minutes", 240))
+    preferences = normalize_pace_preferences(preferences)
+    base_duration_minutes = get_base_duration_minutes(preferences)
 
     budget_extra = round(budget * policy["budget_relax_ratio"], 2)
     wait_extra = policy["wait_relax_minutes"]
-    duration_extra = min(
-        policy["duration_relax_minutes"],
-        int(duration_minutes * policy["duration_relax_ratio"])
-    )
+    if is_intensive(preferences):
+        duration_extra = int(preferences.get("time_flex_minutes", 0) or 0)
+    else:
+        duration_extra = min(
+            policy["duration_relax_minutes"],
+            int(base_duration_minutes * policy["duration_relax_ratio"])
+        )
 
     effective_preferences = dict(preferences)
     effective_preferences["budget"] = budget + budget_extra
     effective_preferences["max_wait"] = max_wait + wait_extra
-    effective_preferences["duration_minutes"] = duration_minutes + duration_extra
+    effective_preferences["duration_minutes"] = base_duration_minutes + duration_extra
+    effective_preferences["base_duration_minutes"] = base_duration_minutes
 
     constraint_policy = {
         "mode": option_type,
@@ -150,7 +167,7 @@ def build_option_constraints(option_type, preferences):
         "duration_minutes_extra": duration_extra,
         "original_budget": round(budget, 2),
         "original_max_wait": max_wait,
-        "original_duration_minutes": duration_minutes
+        "original_duration_minutes": base_duration_minutes
     }
 
     return effective_preferences, constraint_policy, relaxed_constraints
@@ -370,6 +387,10 @@ def normalize_route_request(user_request):
         if user_request.get("poi_count") is not None:
             preferences["poi_count"] = user_request.get("poi_count")
 
+    for field in ["pace_mode", "time_flex_minutes"]:
+        if field in user_request and field not in preferences:
+            preferences[field] = user_request.get(field)
+
     preferences.setdefault("city", user_request.get("city", "杭州"))
     preferences.setdefault("transport", user_request.get("transport", "walk"))
     preferences.setdefault("time_window", user_request.get("time_window", ["10:00", "18:00"]))
@@ -404,6 +425,8 @@ def normalize_route_request(user_request):
 
         preferences[field] = default_value
         missing_fields.append(field)
+
+    preferences = normalize_pace_preferences(preferences)
 
     assumptions = build_assumptions(missing_fields)
     preference_insight = {
@@ -481,6 +504,8 @@ def choose_next_poi_for_option(current_point, candidate_pois, option_type, prefe
         else:
             value = poi["engine_score"] - distance * 8
 
+        value += pace_score_adjustment(poi, distance, preferences)
+
         if poi.get("id") in avoid_poi_ids:
             value -= 18
 
@@ -509,7 +534,7 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
     must_visit_ids = {poi["id"] for poi in must_visit_pois}
 
     poi_count = preferences.get("poi_count")
-    duration_minutes = preferences.get("duration_minutes", 240)
+    duration_minutes = get_effective_duration_minutes(preferences)
     time_window = preferences.get("time_window", ["10:00", "18:00"])
     transport = preferences.get("transport", "walk")
     budget = preferences.get("budget", 300)
@@ -517,12 +542,8 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
     user_specified_poi_count = poi_count is not None and int(poi_count) > 0
 
     if not poi_count:
-        if duration_minutes <= 150:
-            poi_count = 2
-        elif duration_minutes <= 300:
-            poi_count = 3
-        else:
-            poi_count = 4
+        poi_count = get_default_poi_count(get_base_duration_minutes(preferences))
+        poi_count += get_intensive_poi_count_bonus(preferences)
 
     poi_count = int(poi_count)
     poi_count = max(poi_count, len(must_visit_pois))
@@ -576,11 +597,13 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
         travel_minutes = estimate_travel_minutes(distance_km, transport)
 
         arrive_time = current_time + timedelta(minutes=travel_minutes)
+        stay_duration = get_adjusted_stay_duration(next_poi, preferences)
+
         leave_time = arrive_time + timedelta(
-            minutes=next_poi.get("wait_time", 0) + next_poi.get("stay_duration", 0)
+            minutes=next_poi.get("wait_time", 0) + stay_duration
         )
 
-        projected_total_time = total_time + travel_minutes + next_poi.get("wait_time", 0) + next_poi.get("stay_duration", 0)
+        projected_total_time = total_time + travel_minutes + next_poi.get("wait_time", 0) + stay_duration
         projected_total_cost = total_cost + next_poi.get("price", 0)
         is_must_visit = next_poi.get("id") in pending_must_visit_ids
 
@@ -599,6 +622,10 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
             continue
 
         poi_detail = dict(next_poi)
+        original_stay_duration = int(next_poi.get("stay_duration", 0) or 0)
+        poi_detail["stay_duration"] = stay_duration
+        if stay_duration != original_stay_duration:
+            poi_detail["original_stay_duration"] = original_stay_duration
         poi_detail["arrive_time"] = arrive_time.strftime("%H:%M")
         poi_detail["leave_time"] = leave_time.strftime("%H:%M")
 
@@ -617,7 +644,7 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
             pending_must_visit_ids.remove(next_poi["id"])
 
         total_cost += next_poi.get("price", 0)
-        total_time += travel_minutes + next_poi.get("wait_time", 0) + next_poi.get("stay_duration", 0)
+        total_time += travel_minutes + next_poi.get("wait_time", 0) + stay_duration
         total_travel_time += travel_minutes
         total_wait_time += next_poi.get("wait_time", 0)
         total_distance += distance_km
@@ -660,6 +687,7 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
         "total_distance": round(total_distance, 2),
         "search_radius_km": round(infer_search_radius_km(duration_minutes, transport), 2),
         "option_type": option_type,
+        "pace_info": build_pace_info(preferences),
         "must_visit_pois_included": included_must_visit,
         "must_visit_pois_missing": list(missing_must_visit_by_id.values())
     }
@@ -682,6 +710,7 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
     生成单个方案。
     """
     effective_preferences, constraint_policy, relaxed_constraints = build_option_constraints(option_type, preferences)
+    pace_info = build_pace_info(effective_preferences)
 
     filtered_pois = filter_pois(pois, start_point, effective_preferences, option_type)
 
@@ -735,16 +764,21 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
             "relaxed_constraints": relaxed_constraints,
             "relaxation_notice": build_relaxation_notice(None, relaxed_constraints),
             "differentiation_reason": "当前约束下没有足够 POI 形成该方案。",
+            "pace_info": pace_info,
             "must_visit_pois_included": [],
             "must_visit_pois_missing": must_visit_pois or []
         }
 
     differentiation_reason = build_differentiation_reason(option_type, route, preferences, user_prefs)
     relaxation_notice = build_relaxation_notice(route, relaxed_constraints)
+    pace_notice = build_pace_relaxation_notice(route, effective_preferences)
+    if pace_notice:
+        relaxation_notice = pace_notice
     route["constraint_policy"] = constraint_policy
     route["relaxed_constraints"] = relaxed_constraints
     route["relaxation_notice"] = relaxation_notice
     route["differentiation_reason"] = differentiation_reason
+    route["pace_info"] = pace_info
 
     summary = generate_route_summary(option_type, route, user_prefs)
     is_valid_summary = validate_explanation(summary, route)
@@ -770,6 +804,7 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
         "relaxed_constraints": relaxed_constraints,
         "relaxation_notice": relaxation_notice,
         "differentiation_reason": differentiation_reason,
+        "pace_info": pace_info,
         "must_visit_pois_included": route["must_visit_pois_included"],
         "must_visit_pois_missing": route["must_visit_pois_missing"],
         "summary_valid": is_valid_summary
@@ -882,6 +917,7 @@ def generate_route_plan(user_request):
             used_poi_ids.update(poi.get("id") for poi in option.get("pois", []))
 
     has_success_option = any(option.get("success") for option in options)
+    pace_info = build_pace_info(preferences)
 
     return {
         "success": has_success_option,
@@ -890,6 +926,7 @@ def generate_route_plan(user_request):
         "start_point": start_point,
         "friends_center": friends_center,
         "preference_insight": preference_insight,
+        "pace_info": pace_info,
         "options": options
     }
 
