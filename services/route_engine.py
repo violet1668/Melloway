@@ -1,7 +1,15 @@
 from datetime import timedelta
 
 from services.poi_service import get_pois
-from services.user_service import load_user_profile, infer_user_preferences
+from services.user_service import (
+    DEFAULT_BUDGET,
+    DEFAULT_DURATION_MINUTES,
+    DEFAULT_MAX_WAIT,
+    extract_preferences_from_text,
+    load_user_profile,
+    infer_user_preferences,
+    unique_keep_order,
+)
 from services.constraints import (
     parse_start_point,
     parse_time,
@@ -37,6 +45,38 @@ OPTION_CONSTRAINT_POLICIES = {
         "strategy": "结合用户画像、长期偏好、UGC、小众宝藏点和本地特色，允许在明确提示下小幅放宽约束。"
     }
 }
+
+DEFAULT_ASSUMPTION_MESSAGES = {
+    "budget": "300元预算",
+    "duration_minutes": "4小时",
+    "max_wait": "最多排队30分钟"
+}
+
+ASSUMPTION_FIELD_LABELS = {
+    "budget": "预算",
+    "duration_minutes": "游玩时长",
+    "max_wait": "排队限制"
+}
+
+
+def build_assumptions(missing_fields):
+    """
+    说明哪些约束由系统默认补齐。
+    """
+    if not missing_fields:
+        return {
+            "has_missing_constraints": False,
+            "missing_fields": [],
+            "message": "预算、游玩时长和排队限制均已明确。"
+        }
+
+    field_labels = [ASSUMPTION_FIELD_LABELS[field] for field in missing_fields]
+    labels = [DEFAULT_ASSUMPTION_MESSAGES[field] for field in missing_fields]
+    return {
+        "has_missing_constraints": True,
+        "missing_fields": missing_fields,
+        "message": f"你没有填写{ '、'.join(field_labels) }，系统已默认按{ '、'.join(labels) }规划。"
+    }
 
 
 def build_option_constraints(option_type, preferences):
@@ -235,7 +275,16 @@ def normalize_route_request(user_request):
         return {
             "start": None,
             "preferences": {},
-            "user_input": ""
+            "user_input": "",
+            "must_visit_pois": [],
+            "preference_insight": {
+                "raw_input": "",
+                "extracted_food": [],
+                "extracted_tags": [],
+                "extracted_constraints": {},
+                "assumptions": build_assumptions(["budget", "duration_minutes", "max_wait"]),
+                "parser_source": "rules"
+            }
         }
 
     raw_preferences = user_request.get("preferences", {})
@@ -245,20 +294,35 @@ def normalize_route_request(user_request):
         start = user_request.get("start") or user_request.get("start_location")
         user_input = user_request.get("user_input", "")
         must_visit_pois = user_request.get("must_visit_pois", preferences.get("must_visit_pois", []))
+
+        if "budget" not in preferences and "budget" in user_request:
+            preferences["budget"] = user_request.get("budget")
+        if "max_wait" not in preferences and "max_wait_time" in user_request:
+            preferences["max_wait"] = user_request.get("max_wait_time")
+        if "max_wait" not in preferences and "max_wait" in user_request:
+            preferences["max_wait"] = user_request.get("max_wait")
+        if "duration_minutes" not in preferences and "duration_minutes" in user_request:
+            preferences["duration_minutes"] = user_request.get("duration_minutes")
+        if "duration_minutes" not in preferences and "duration_hours" in user_request:
+            preferences["duration_minutes"] = int(float(user_request.get("duration_hours")) * 60)
     else:
         preference_items = raw_preferences if isinstance(raw_preferences, list) else []
         preferences = {
             "city": user_request.get("city", "杭州"),
             "food": preference_items,
             "tags": preference_items,
-            "budget": user_request.get("budget", 300),
-            "max_wait": user_request.get("max_wait_time", 30),
-            "duration_minutes": int(float(user_request.get("duration_hours", 4)) * 60),
             "transport": user_request.get("transport", "walk")
         }
         start = user_request.get("start") or user_request.get("start_location")
         user_input = user_request.get("user_input") or "、".join(preference_items)
         must_visit_pois = user_request.get("must_visit_pois", [])
+
+        if "budget" in user_request:
+            preferences["budget"] = user_request.get("budget")
+        if "max_wait_time" in user_request:
+            preferences["max_wait"] = user_request.get("max_wait_time")
+        if "duration_hours" in user_request:
+            preferences["duration_minutes"] = int(float(user_request.get("duration_hours")) * 60)
 
         if user_request.get("time_window"):
             preferences["time_window"] = user_request.get("time_window")
@@ -272,9 +336,6 @@ def normalize_route_request(user_request):
             preferences["poi_count"] = user_request.get("poi_count")
 
     preferences.setdefault("city", user_request.get("city", "杭州"))
-    preferences.setdefault("budget", user_request.get("budget", 300))
-    preferences.setdefault("max_wait", user_request.get("max_wait_time", 30))
-    preferences.setdefault("duration_minutes", int(float(user_request.get("duration_hours", 4)) * 60))
     preferences.setdefault("transport", user_request.get("transport", "walk"))
     preferences.setdefault("time_window", user_request.get("time_window", ["10:00", "18:00"]))
 
@@ -283,11 +344,48 @@ def normalize_route_request(user_request):
     if "tags" not in preferences:
         preferences["tags"] = []
 
+    extracted_preferences = extract_preferences_from_text(user_input)
+    preferences["food"] = unique_keep_order(
+        list(preferences.get("food", [])) + extracted_preferences["food"]
+    )
+    preferences["tags"] = unique_keep_order(
+        list(preferences.get("tags", [])) + extracted_preferences["tags"]
+    )
+
+    missing_fields = []
+    defaults = {
+        "budget": DEFAULT_BUDGET,
+        "duration_minutes": DEFAULT_DURATION_MINUTES,
+        "max_wait": DEFAULT_MAX_WAIT
+    }
+
+    for field, default_value in defaults.items():
+        if field in preferences:
+            continue
+
+        if field in extracted_preferences["constraints"]:
+            preferences[field] = extracted_preferences["constraints"][field]
+            continue
+
+        preferences[field] = default_value
+        missing_fields.append(field)
+
+    assumptions = build_assumptions(missing_fields)
+    preference_insight = {
+        "raw_input": user_input,
+        "extracted_food": extracted_preferences["food"],
+        "extracted_tags": extracted_preferences["tags"],
+        "extracted_constraints": extracted_preferences["constraints"],
+        "assumptions": assumptions,
+        "parser_source": "rules"
+    }
+
     return {
         "start": start,
         "preferences": preferences,
         "user_input": user_input,
-        "must_visit_pois": must_visit_pois
+        "must_visit_pois": must_visit_pois,
+        "preference_insight": preference_insight
     }
 
 
@@ -698,7 +796,10 @@ def generate_route_plan(user_request):
     user_prefs = load_user_profile()
 
     user_input = normalized_request.get("user_input", "")
-    preference_insight = infer_user_preferences(user_input, user_prefs)
+    preference_insight = {
+        **infer_user_preferences(user_input, user_prefs),
+        **normalized_request.get("preference_insight", {})
+    }
 
     option_types = [
         "demand_satisfaction",

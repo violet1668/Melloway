@@ -45,6 +45,76 @@ class TestRouteEngine(unittest.TestCase):
         self.assertIn("route", first_success)
         self.assertGreaterEqual(len(first_success["route"]["pois"]), 1)
 
+    def test_user_input_only_generates_routes_with_extracted_preferences(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "user_input": "想找安静一点、适合拍照、能喝咖啡的citywalk路线"
+        })
+
+        insight = result["preference_insight"]
+
+        self.assertTrue(result["success"])
+        self.assertEqual(len(result["options"]), 3)
+        self.assertIn("咖啡", insight["extracted_food"])
+        self.assertIn("安静", insight["extracted_tags"])
+        self.assertIn("适合拍照", insight["extracted_tags"])
+        self.assertIn("citywalk", insight["extracted_tags"])
+        self.assertEqual(insight["parser_source"], "rules")
+
+    def test_user_input_extracts_budget_duration_wait_and_food(self):
+        normalized = normalize_route_request({
+            "start": "120.1646,30.2552",
+            "user_input": "预算200，玩3小时，不想排队，想吃川菜再喝咖啡"
+        })
+
+        preferences = normalized["preferences"]
+        insight = normalized["preference_insight"]
+
+        self.assertEqual(preferences["budget"], 200)
+        self.assertEqual(preferences["duration_minutes"], 180)
+        self.assertEqual(preferences["max_wait"], 15)
+        self.assertIn("川菜", preferences["food"])
+        self.assertIn("咖啡", preferences["food"])
+        self.assertEqual(insight["extracted_constraints"]["budget"], 200)
+        self.assertEqual(insight["extracted_constraints"]["duration_minutes"], 180)
+        self.assertEqual(insight["extracted_constraints"]["max_wait"], 15)
+
+    def test_user_input_missing_constraints_returns_assumptions(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "user_input": "想找安静一点、适合拍照、能喝咖啡的citywalk路线"
+        })
+
+        assumptions = result["preference_insight"]["assumptions"]
+
+        self.assertTrue(assumptions["has_missing_constraints"])
+        self.assertEqual(
+            assumptions["missing_fields"],
+            ["budget", "duration_minutes", "max_wait"]
+        )
+        self.assertIn("系统已默认", assumptions["message"])
+
+    def test_explicit_constraints_are_not_overwritten_by_user_input(self):
+        normalized = normalize_route_request({
+            "start": "120.1646,30.2552",
+            "user_input": "预算200，玩3小时，不想排队，想吃川菜再喝咖啡",
+            "preferences": {
+                "city": "杭州",
+                "budget": 500,
+                "duration_minutes": 360,
+                "max_wait": 45,
+                "food": ["杭帮菜"],
+                "tags": ["本地风味"]
+            }
+        })
+
+        preferences = normalized["preferences"]
+
+        self.assertEqual(preferences["budget"], 500)
+        self.assertEqual(preferences["duration_minutes"], 360)
+        self.assertEqual(preferences["max_wait"], 45)
+        self.assertEqual(preferences["food"], ["杭帮菜", "川菜", "咖啡"])
+
     def test_prd_request_format_is_normalized_to_engine_preferences(self):
         normalized = normalize_route_request({
             "mode": "standard",
