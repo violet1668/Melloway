@@ -169,5 +169,89 @@ class TestRouteEngine(unittest.TestCase):
             if uses_relaxation:
                 self.assertIn("为了更好满足你的偏好", option["relaxation_notice"])
 
+    def test_route_generation_without_must_visit_pois_still_works(self):
+        result = generate_route_plan(self._differentiation_request())
+
+        self.assertTrue(result["success"])
+        self.assertEqual(len(result["options"]), 3)
+        for option in result["options"]:
+            self.assertIn("must_visit_pois_included", option)
+            self.assertIn("must_visit_pois_missing", option)
+            self.assertEqual(option["must_visit_pois_included"], [])
+            self.assertEqual(option["must_visit_pois_missing"], [])
+
+    def test_existing_single_must_visit_poi_is_included(self):
+        request_data = self._differentiation_request()
+        request_data["must_visit_pois"] = ["poi_008"]
+
+        result = generate_route_plan(request_data)
+
+        self.assertTrue(result["success"])
+        for option in result["options"]:
+            route_poi_ids = [poi["id"] for poi in option["pois"]]
+            included_ids = [poi["id"] for poi in option["must_visit_pois_included"]]
+            self.assertIn("poi_008", route_poi_ids)
+            self.assertIn("poi_008", included_ids)
+
+    def test_two_existing_must_visit_pois_are_prioritized_by_demand_satisfaction(self):
+        request_data = {
+            "start": "120.1646,30.2552",
+            "must_visit_pois": ["poi_010", {"id": "poi_008", "name": "西湖步行观景点"}],
+            "preferences": {
+                "city": "杭州",
+                "food": ["杭帮菜"],
+                "tags": ["本地风味", "放松"],
+                "budget": 260,
+                "time_window": ["10:00", "18:00"],
+                "max_wait": 30,
+                "duration_minutes": 260,
+                "transport": "walk"
+            }
+        }
+
+        result = generate_route_plan(request_data)
+        demand_option = next(option for option in result["options"] if option["type"] == "demand_satisfaction")
+        included_ids = {poi["id"] for poi in demand_option["must_visit_pois_included"]}
+
+        self.assertTrue(demand_option["success"])
+        self.assertEqual(included_ids, {"poi_010", "poi_008"})
+        self.assertEqual(demand_option["must_visit_pois_missing"], [])
+
+    def test_missing_must_visit_poi_id_returns_error(self):
+        request_data = self._differentiation_request()
+        request_data["must_visit_pois"] = ["poi_not_exists"]
+
+        result = generate_route_plan(request_data)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["options"], [])
+        self.assertIn("未找到手动添加的 POI", result["message"])
+        self.assertIn("poi_not_exists", result["message"])
+
+    def test_hard_constraint_reports_missing_must_visit_pois_when_unavailable(self):
+        request_data = {
+            "start": "120.1646,30.2552",
+            "must_visit_pois": ["poi_006"],
+            "preferences": {
+                "city": "杭州",
+                "food": ["烤肉"],
+                "tags": ["网红", "热闹"],
+                "budget": 40,
+                "time_window": ["10:00", "18:00"],
+                "max_wait": 20,
+                "duration_minutes": 120,
+                "transport": "walk"
+            }
+        }
+
+        result = generate_route_plan(request_data)
+        hard_option = next(option for option in result["options"] if option["type"] == "hard_constraint")
+        missing_ids = [poi["id"] for poi in hard_option["must_visit_pois_missing"]]
+
+        self.assertTrue(hard_option["success"])
+        self.assertIn("poi_006", missing_ids)
+        self.assertIn("未纳入", hard_option["differentiation_reason"])
+        self.assertNotIn("poi_006", [poi["id"] for poi in hard_option["pois"]])
+
 if __name__ == '__main__':
     unittest.main()

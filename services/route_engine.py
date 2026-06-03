@@ -107,6 +107,33 @@ def build_relaxation_notice(route, relaxed_constraints):
     return f"这条路线为了更好满足你的偏好，{ '，'.join(parts) }。"
 
 
+def build_must_visit_summary(route):
+    """
+    提取 DIY 必去点纳入情况。
+    """
+    if not route:
+        return [], []
+
+    included = route.get("must_visit_pois_included", [])
+    missing = route.get("must_visit_pois_missing", [])
+    return included, missing
+
+
+def format_must_visit_reason(included, missing):
+    """
+    生成 DIY POI 纳入说明。
+    """
+    parts = []
+    if included:
+        included_names = "、".join(poi["name"] for poi in included)
+        parts.append(f"已纳入你手动添加的 {included_names}")
+    if missing:
+        missing_names = "、".join(poi["name"] for poi in missing)
+        parts.append(f"未纳入 {missing_names}")
+
+    return "；".join(parts)
+
+
 def build_differentiation_reason(option_type, route, preferences, user_prefs):
     """
     解释当前方案的真实取舍，不使用通用空话。
@@ -115,9 +142,15 @@ def build_differentiation_reason(option_type, route, preferences, user_prefs):
     if not pois:
         return "当前约束下没有足够 POI 形成该方案。"
 
+    included, missing = build_must_visit_summary(route)
+    must_visit_text = format_must_visit_reason(included, missing)
+
     if option_type == "hard_constraint":
         avg_wait = round(sum(poi.get("wait_time", 0) for poi in pois) / len(pois), 1)
-        return f"该方案优先控制预算、排队和移动距离，路线总花费 {route['total_cost']} 元，单点平均排队约 {avg_wait} 分钟。"
+        reason = f"该方案优先控制预算、排队和移动距离，路线总花费 {route['total_cost']} 元，单点平均排队约 {avg_wait} 分钟。"
+        if must_visit_text:
+            reason += f"DIY POI 处理结果：{must_visit_text}。"
+        return reason
 
     if option_type == "demand_satisfaction":
         matched = [
@@ -126,7 +159,10 @@ def build_differentiation_reason(option_type, route, preferences, user_prefs):
             if preference_match_score(poi, preferences) > 0
         ]
         matched_text = "、".join(matched[:3]) if matched else "高评分和热门地点"
-        return f"该方案优先满足你本次输入的 food/tags 偏好，重点选择了 {matched_text}，并接受有限放宽来提高匹配度。"
+        reason = f"该方案优先满足你本次输入的 food/tags 偏好，重点选择了 {matched_text}，并接受有限放宽来提高匹配度。"
+        if must_visit_text:
+            reason += f"DIY POI 处理结果：{must_visit_text}。"
+        return reason
 
     explicit = user_prefs.get("explicit_preferences", {})
     history = user_prefs.get("history_behavior", {})
@@ -146,7 +182,49 @@ def build_differentiation_reason(option_type, route, preferences, user_prefs):
     if ugc_hits:
         signals.append(f"UGC 中被反复提到的 { '、'.join(ugc_hits[:2]) }")
 
-    return "该方案结合用户画像选择" + "，".join(signals or ["安静、本地风味和适合聊天的地点"]) + "，并降低已去过或不喜欢标签的权重。"
+    reason = "该方案结合用户画像选择" + "，".join(signals or ["安静、本地风味和适合聊天的地点"]) + "，并降低已去过或不喜欢标签的权重。"
+    if must_visit_text:
+        reason += f"DIY POI 处理结果：{must_visit_text}。"
+    return reason
+
+
+def normalize_must_visit_poi_ids(raw_must_visit_pois):
+    """
+    兼容 must_visit_pois 的字符串 id 列表和对象列表格式。
+    """
+    if not raw_must_visit_pois:
+        return []
+
+    normalized_ids = []
+    seen_ids = set()
+
+    for item in raw_must_visit_pois:
+        if isinstance(item, str):
+            poi_id = item
+        elif isinstance(item, dict):
+            poi_id = item.get("id")
+        else:
+            poi_id = None
+
+        if poi_id and poi_id not in seen_ids:
+            normalized_ids.append(poi_id)
+            seen_ids.add(poi_id)
+
+    return normalized_ids
+
+
+def resolve_must_visit_pois(raw_must_visit_pois, pois):
+    """
+    根据 id 从现有 POI 数据中解析 DIY 必去点。
+    """
+    must_visit_ids = normalize_must_visit_poi_ids(raw_must_visit_pois)
+    poi_by_id = {poi.get("id"): poi for poi in pois}
+    missing_ids = [poi_id for poi_id in must_visit_ids if poi_id not in poi_by_id]
+
+    if missing_ids:
+        return [], missing_ids
+
+    return [dict(poi_by_id[poi_id]) for poi_id in must_visit_ids], []
 
 
 def normalize_route_request(user_request):
@@ -166,6 +244,7 @@ def normalize_route_request(user_request):
         preferences = dict(raw_preferences)
         start = user_request.get("start") or user_request.get("start_location")
         user_input = user_request.get("user_input", "")
+        must_visit_pois = user_request.get("must_visit_pois", preferences.get("must_visit_pois", []))
     else:
         preference_items = raw_preferences if isinstance(raw_preferences, list) else []
         preferences = {
@@ -179,6 +258,7 @@ def normalize_route_request(user_request):
         }
         start = user_request.get("start") or user_request.get("start_location")
         user_input = user_request.get("user_input") or "、".join(preference_items)
+        must_visit_pois = user_request.get("must_visit_pois", [])
 
         if user_request.get("time_window"):
             preferences["time_window"] = user_request.get("time_window")
@@ -206,7 +286,8 @@ def normalize_route_request(user_request):
     return {
         "start": start,
         "preferences": preferences,
-        "user_input": user_input
+        "user_input": user_input,
+        "must_visit_pois": must_visit_pois
     }
 
 
@@ -277,7 +358,7 @@ def choose_next_poi_for_option(current_point, candidate_pois, option_type, prefe
     return best_poi
 
 
-def build_route(start_point, candidate_pois, preferences, option_type, user_prefs=None, avoid_poi_ids=None):
+def build_route(start_point, candidate_pois, preferences, option_type, user_prefs=None, avoid_poi_ids=None, must_visit_pois=None):
     """
     根据候选 POI 生成路线。
 
@@ -290,6 +371,9 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
     """
     if not candidate_pois:
         return None
+
+    must_visit_pois = [dict(poi) for poi in (must_visit_pois or [])]
+    must_visit_ids = {poi["id"] for poi in must_visit_pois}
 
     poi_count = preferences.get("poi_count")
     duration_minutes = preferences.get("duration_minutes", 240)
@@ -308,15 +392,19 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
             poi_count = 4
 
     poi_count = int(poi_count)
+    poi_count = max(poi_count, len(must_visit_pois))
 
-    if user_specified_poi_count and len(candidate_pois) < poi_count:
+    if user_specified_poi_count and len(candidate_pois) < poi_count and not must_visit_pois:
         return None
 
     if not user_specified_poi_count:
         poi_count = min(poi_count, len(candidate_pois))
 
     current_point = start_point
-    remaining = list(candidate_pois)
+    candidate_by_id = {poi.get("id"): dict(poi) for poi in candidate_pois}
+    remaining = list(candidate_by_id.values())
+    pending_must_visit_ids = set(must_visit_ids)
+    missing_must_visit = []
     selected = []
     segments = []
 
@@ -328,9 +416,15 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
     total_distance = 0
 
     for index in range(poi_count):
+        must_visit_candidates = [
+            poi for poi in remaining
+            if poi.get("id") in pending_must_visit_ids
+        ]
+        candidates_for_step = must_visit_candidates or remaining
+
         next_poi = choose_next_poi_for_option(
             current_point=current_point,
-            candidate_pois=remaining,
+            candidate_pois=candidates_for_step,
             option_type=option_type,
             preferences=preferences,
             user_prefs=user_prefs,
@@ -355,13 +449,20 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
 
         projected_total_time = total_time + travel_minutes + next_poi.get("wait_time", 0) + next_poi.get("stay_duration", 0)
         projected_total_cost = total_cost + next_poi.get("price", 0)
+        is_must_visit = next_poi.get("id") in pending_must_visit_ids
 
         if projected_total_time > duration_minutes:
             remaining.remove(next_poi)
+            if is_must_visit:
+                missing_must_visit.append(dict(next_poi))
+                pending_must_visit_ids.remove(next_poi["id"])
             continue
 
         if projected_total_cost > budget:
             remaining.remove(next_poi)
+            if is_must_visit:
+                missing_must_visit.append(dict(next_poi))
+                pending_must_visit_ids.remove(next_poi["id"])
             continue
 
         poi_detail = dict(next_poi)
@@ -379,6 +480,8 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
         })
 
         selected.append(poi_detail)
+        if is_must_visit:
+            pending_must_visit_ids.remove(next_poi["id"])
 
         total_cost += next_poi.get("price", 0)
         total_time += travel_minutes + next_poi.get("wait_time", 0) + next_poi.get("stay_duration", 0)
@@ -400,6 +503,19 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
     if user_specified_poi_count and len(selected) < poi_count:
         return None
 
+    included_must_visit = [
+        poi for poi in selected
+        if poi.get("id") in must_visit_ids
+    ]
+    selected_ids = {poi.get("id") for poi in selected}
+    missing_must_visit_ids = pending_must_visit_ids.union(
+        poi.get("id") for poi in missing_must_visit
+    )
+    missing_must_visit_by_id = {poi.get("id"): poi for poi in missing_must_visit}
+    for poi in must_visit_pois:
+        if poi.get("id") in missing_must_visit_ids and poi.get("id") not in selected_ids:
+            missing_must_visit_by_id.setdefault(poi.get("id"), poi)
+
     return {
         "start_point": start_point,
         "pois": selected,
@@ -410,7 +526,9 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
         "total_travel_time": total_travel_time,
         "total_distance": round(total_distance, 2),
         "search_radius_km": round(infer_search_radius_km(duration_minutes, transport), 2),
-        "option_type": option_type
+        "option_type": option_type,
+        "must_visit_pois_included": included_must_visit,
+        "must_visit_pois_missing": list(missing_must_visit_by_id.values())
     }
 
 
@@ -426,7 +544,7 @@ def get_option_name(option_type):
     return option_names.get(option_type, option_type)
 
 
-def generate_one_option(option_type, start_point, preferences, pois, user_prefs, avoid_poi_ids=None):
+def generate_one_option(option_type, start_point, preferences, pois, user_prefs, avoid_poi_ids=None, must_visit_pois=None):
     """
     生成单个方案。
     """
@@ -454,7 +572,8 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
         preferences=effective_preferences,
         option_type=option_type,
         user_prefs=user_prefs,
-        avoid_poi_ids=avoid_poi_ids
+        avoid_poi_ids=avoid_poi_ids,
+        must_visit_pois=must_visit_pois
     )
 
     if not route:
@@ -482,7 +601,9 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
             "constraint_policy": constraint_policy,
             "relaxed_constraints": relaxed_constraints,
             "relaxation_notice": build_relaxation_notice(None, relaxed_constraints),
-            "differentiation_reason": "当前约束下没有足够 POI 形成该方案。"
+            "differentiation_reason": "当前约束下没有足够 POI 形成该方案。",
+            "must_visit_pois_included": [],
+            "must_visit_pois_missing": must_visit_pois or []
         }
 
     differentiation_reason = build_differentiation_reason(option_type, route, preferences, user_prefs)
@@ -516,6 +637,8 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
         "relaxed_constraints": relaxed_constraints,
         "relaxation_notice": relaxation_notice,
         "differentiation_reason": differentiation_reason,
+        "must_visit_pois_included": route["must_visit_pois_included"],
+        "must_visit_pois_missing": route["must_visit_pois_missing"],
         "summary_valid": is_valid_summary
     }
 
@@ -561,6 +684,17 @@ def generate_route_plan(user_request):
         }
 
     pois = get_pois(city=preferences.get("city", "杭州"))
+    must_visit_pois, missing_must_visit_ids = resolve_must_visit_pois(
+        normalized_request.get("must_visit_pois", []),
+        pois
+    )
+    if missing_must_visit_ids:
+        return {
+            "success": False,
+            "message": f"未找到手动添加的 POI：{ '、'.join(missing_must_visit_ids) }，请从现有 POI 数据中选择。",
+            "options": []
+        }
+
     user_prefs = load_user_profile()
 
     user_input = normalized_request.get("user_input", "")
@@ -582,7 +716,8 @@ def generate_route_plan(user_request):
             preferences=preferences,
             pois=pois,
             user_prefs=user_prefs,
-            avoid_poi_ids=used_poi_ids
+            avoid_poi_ids=used_poi_ids,
+            must_visit_pois=must_visit_pois
         )
         options.append(option)
         if option.get("success"):
