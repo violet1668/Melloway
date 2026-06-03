@@ -16,20 +16,27 @@ def generate_route_summary(option_type, route, user_prefs):
         return "当前条件下暂未生成可用路线，请适当放宽预算、时间或排队限制。"
 
     route_text = " → ".join(poi_names)
+    differentiation_reason = route.get("differentiation_reason", "")
+    relaxation_notice = route.get("relaxation_notice", "")
+    detail_text = ""
+    if differentiation_reason:
+        detail_text += f"{differentiation_reason}"
+    if relaxation_notice:
+        detail_text += f"{relaxation_notice}"
 
     if option_type == "demand_satisfaction":
-        return f"这条路线优先满足你的输入需求，安排为：{route_text}，预计花费约 {total_cost} 元，总耗时约 {total_time} 分钟。"
+        return f"这条路线优先满足你的输入需求，安排为：{route_text}，预计花费约 {total_cost} 元，总耗时约 {total_time} 分钟。{detail_text}"
 
     if option_type == "hard_constraint":
-        return f"这条路线严格控制预算、排队和时间约束，安排为：{route_text}，预计花费约 {total_cost} 元，总耗时约 {total_time} 分钟。"
+        return f"这条路线严格控制预算、排队和时间约束，安排为：{route_text}，预计花费约 {total_cost} 元，总耗时约 {total_time} 分钟。{detail_text}"
 
     if option_type == "preference_insight":
         explicit = user_prefs.get("explicit_preferences", {})
         preferred_tags = explicit.get("preferred_tags", [])
         tag_text = "、".join(preferred_tags[:3]) if preferred_tags else "轻松体验"
-        return f"结合你偏好的{tag_text}，系统推荐：{route_text}，更适合轻松探索杭州本地体验。"
+        return f"结合你偏好的{tag_text}，系统推荐：{route_text}，更适合轻松探索杭州本地体验。{detail_text}"
 
-    return f"系统为你生成路线：{route_text}，预计花费约 {total_cost} 元，总耗时约 {total_time} 分钟。"
+    return f"系统为你生成路线：{route_text}，预计花费约 {total_cost} 元，总耗时约 {total_time} 分钟。{detail_text}"
 
 
 def validate_explanation(summary, route):

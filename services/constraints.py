@@ -2,6 +2,19 @@ import math
 from datetime import datetime
 
 
+def is_valid_coordinate(lng, lat):
+    """
+    校验经纬度是否合法。
+    """
+    try:
+        lng = float(lng)
+        lat = float(lat)
+    except (TypeError, ValueError):
+        return False
+
+    return -180 <= lng <= 180 and -90 <= lat <= 90
+
+
 def parse_start_point(start):
     """
     解析用户输入的起点坐标。
@@ -29,6 +42,9 @@ def parse_start_point(start):
     # 新接口格式：start 是一个对象
     if isinstance(start, dict):
         try:
+            if not is_valid_coordinate(start.get("lng"), start.get("lat")):
+                raise ValueError
+
             result = {
                 "lng": float(start.get("lng")),
                 "lat": float(start.get("lat"))
@@ -46,6 +62,9 @@ def parse_start_point(start):
     if isinstance(start, str):
         try:
             lng_text, lat_text = start.split(",")
+            if not is_valid_coordinate(lng_text.strip(), lat_text.strip()):
+                raise ValueError
+
             return {
                 "lng": float(lng_text.strip()),
                 "lat": float(lat_text.strip())
@@ -146,16 +165,10 @@ def is_open_during_visit(poi, arrive_time_text):
 
 def filter_pois(pois, start_point, preferences, option_type):
     """
-    根据不同方案过滤 POI。
+    根据当前方案的生效约束过滤 POI。
 
-    hard_constraint：
-    - 严格满足预算、排队、营业时间、距离范围。
-
-    demand_satisfaction：
-    - 更重视用户输入需求和体验，可以适度放宽预算和排队条件。
-
-    preference_insight：
-    - 在硬约束基础上结合历史偏好。
+    不同方案的放宽规则由 route_engine 先计算到 preferences 中，
+    这里统一按传入的预算、排队、营业时间、距离范围执行。
     """
     budget = preferences.get("budget", 300)
     max_wait = preferences.get("max_wait", 30)
@@ -169,6 +182,9 @@ def filter_pois(pois, start_point, preferences, option_type):
     filtered = []
 
     for poi in pois:
+        if not is_valid_coordinate(poi.get("lng"), poi.get("lat")):
+            continue
+
         distance_from_start = haversine_km(
             start_point["lng"],
             start_point["lat"],
@@ -185,22 +201,11 @@ def filter_pois(pois, start_point, preferences, option_type):
         if not is_open_during_visit(poi, start_time):
             continue
 
-        if option_type == "hard_constraint" or option_type == "preference_insight":
-            if poi.get("price", 0) > budget:
-                continue
+        if poi.get("price", 0) > budget:
+            continue
 
-            if poi.get("wait_time", 0) > max_wait:
-                continue
-
-        if option_type == "demand_satisfaction":
-            relaxed_budget = budget * 1.25
-            relaxed_wait = max_wait + 15
-
-            if poi.get("price", 0) > relaxed_budget:
-                continue
-
-            if poi.get("wait_time", 0) > relaxed_wait:
-                continue
+        if poi.get("wait_time", 0) > max_wait:
+            continue
 
         filtered.append(poi)
 
