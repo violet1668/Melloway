@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 
 from services.route_engine import generate_route_plan
 from services.friends import find_friends_route
+from services.blindbox import generate_blindbox_route
 
 
 app = Flask(__name__)
@@ -72,6 +73,39 @@ def api_friends_center():
             "success": False,
             "message": str(error)
         }), 400
+    except Exception as error:
+        return jsonify({
+            "success": False,
+            "message": f"服务器处理失败：{str(error)}"
+        }), 500
+
+
+@app.route("/api/routes/blind-box", methods=["POST"])
+def api_blind_box():
+    """
+    盲盒路线 API。
+    """
+    try:
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({
+                "success": False,
+                "message": "请求体为空，请提交 JSON 数据。"
+            }), 400
+
+        preferences = dict(request_data.get("preferences", {}))
+        for field in [
+            "city", "theme", "blind_box_theme", "start", "start_location",
+            "budget", "max_wait", "max_wait_time", "duration_minutes", "duration_hours",
+            "transport", "time_window", "poi_count"
+        ]:
+            if field in request_data and field not in preferences:
+                preferences[field] = request_data[field]
+
+        result = generate_blindbox_route(preferences=preferences)
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
     except Exception as error:
         return jsonify({
             "success": False,
