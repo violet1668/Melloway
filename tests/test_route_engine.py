@@ -1,5 +1,7 @@
 import unittest
 
+from services.blindbox import generate_blindbox_route
+from services.friends import find_friends_route
 from services.route_engine import generate_route_plan, normalize_route_request
 
 
@@ -364,6 +366,137 @@ class TestRouteEngine(unittest.TestCase):
         self.assertIn("poi_006", missing_ids)
         self.assertIn("未纳入", hard_option["differentiation_reason"])
         self.assertNotIn("poi_006", [poi["id"] for poi in hard_option["pois"]])
+
+    def test_intensive_mode_returns_more_pois_than_normal_mode(self):
+        base_request = {
+            "start": "120.1646,30.2552",
+            "preferences": {
+                "city": "杭州",
+                "food": ["小吃", "咖啡"],
+                "tags": ["citywalk", "小吃", "拍照"],
+                "budget": 500,
+                "time_window": ["10:00", "18:00"],
+                "max_wait": 30,
+                "duration_minutes": 240,
+                "transport": "walk"
+            }
+        }
+
+        normal_result = generate_route_plan(base_request)
+        intensive_request = {
+            **base_request,
+            "preferences": {
+                **base_request["preferences"],
+                "pace_mode": "intensive",
+                "time_flex_minutes": 60
+            }
+        }
+        intensive_result = generate_route_plan(intensive_request)
+
+        normal_max_count = max(len(option["pois"]) for option in normal_result["options"] if option["success"])
+        intensive_max_count = max(len(option["pois"]) for option in intensive_result["options"] if option["success"])
+
+        self.assertTrue(normal_result["success"])
+        self.assertTrue(intensive_result["success"])
+        self.assertEqual(len(intensive_result["options"]), 3)
+        self.assertGreater(intensive_max_count, normal_max_count)
+        self.assertEqual(intensive_result["pace_info"]["pace_mode"], "intensive")
+
+    def test_intensive_mode_respects_time_flex_and_reports_notice(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "preferences": {
+                "city": "杭州",
+                "food": ["小吃", "咖啡"],
+                "tags": ["citywalk", "小吃", "拍照"],
+                "budget": 500,
+                "time_window": ["10:00", "18:00"],
+                "max_wait": 30,
+                "duration_minutes": 240,
+                "transport": "walk",
+                "pace_mode": "intensive",
+                "time_flex_minutes": 60
+            }
+        })
+
+        self.assertTrue(result["success"])
+        for option in result["options"]:
+            if not option["success"]:
+                continue
+            self.assertLessEqual(option["total_time"], 300)
+            self.assertIn("pace_info", option)
+            if option["total_time"] > 240:
+                self.assertIn("特种兵模式", option["relaxation_notice"])
+
+    def test_diy_route_accepts_intensive_pace_fields(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "must_visit_pois": ["poi_008"],
+            "preferences": {
+                "city": "杭州",
+                "food": ["咖啡"],
+                "tags": ["citywalk", "拍照"],
+                "budget": 500,
+                "time_window": ["10:00", "18:00"],
+                "max_wait": 30,
+                "duration_minutes": 240,
+                "transport": "walk",
+                "pace_mode": "intensive",
+                "time_flex_minutes": 30
+            }
+        })
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["pace_info"]["pace_mode"], "intensive")
+        for option in result["options"]:
+            self.assertIn("poi_008", [poi["id"] for poi in option["pois"]])
+
+    def test_friends_route_accepts_intensive_pace_fields(self):
+        result = find_friends_route(preferences={
+            "friends_locations": [
+                {"name": "A", "lng": 120.1600, "lat": 30.2600},
+                {"name": "B", "lng": 120.1800, "lat": 30.2400}
+            ],
+            "budget": 500,
+            "max_wait": 30,
+            "duration_minutes": 240,
+            "transport": "walk",
+            "pace_mode": "intensive",
+            "time_flex_minutes": 60
+        })
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["pace_info"]["pace_mode"], "intensive")
+        self.assertLessEqual(result["total_time"], 300)
+
+    def test_blindbox_route_accepts_intensive_and_returns_more_pois(self):
+        normal_result = generate_blindbox_route(preferences={
+            "theme": "citywalk",
+            "start_location": {"name": "湖滨银泰", "lng": 120.1646, "lat": 30.2552},
+            "duration_hours": 4,
+            "budget": 500,
+            "transport": "walk"
+        })
+        intensive_result = generate_blindbox_route(preferences={
+            "theme": "citywalk",
+            "start_location": {"name": "湖滨银泰", "lng": 120.1646, "lat": 30.2552},
+            "duration_hours": 4,
+            "budget": 500,
+            "transport": "walk",
+            "pace_mode": "intensive",
+            "time_flex_minutes": 60
+        })
+
+        normal_max_count = max(len(box["option"]["pois"]) for box in normal_result["blind_boxes"])
+        intensive_max_count = max(len(box["option"]["pois"]) for box in intensive_result["blind_boxes"])
+
+        self.assertTrue(normal_result["success"])
+        self.assertTrue(intensive_result["success"])
+        self.assertEqual(len(intensive_result["blind_boxes"]), 3)
+        self.assertGreater(intensive_max_count, normal_max_count)
+        for blind_box in intensive_result["blind_boxes"]:
+            self.assertEqual(blind_box["display_name"], "神秘路线盲盒")
+            self.assertEqual(blind_box["option"]["pace_info"]["pace_mode"], "intensive")
 
 if __name__ == '__main__':
     unittest.main()

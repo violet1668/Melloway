@@ -60,7 +60,10 @@ def api_friends_center():
         preferences = dict(request_data.get("preferences", {}))
         preferences["friends_locations"] = request_data.get("friends_locations", [])
 
-        for field in ["city", "budget", "max_wait", "duration_minutes", "transport", "time_window", "poi_count"]:
+        for field in [
+            "city", "budget", "max_wait", "duration_minutes", "transport",
+            "time_window", "poi_count", "pace_mode", "time_flex_minutes"
+        ]:
             if field in request_data and field not in preferences:
                 preferences[field] = request_data[field]
 
@@ -97,7 +100,7 @@ def api_blind_box():
         for field in [
             "city", "theme", "blind_box_theme", "start", "start_location",
             "budget", "max_wait", "max_wait_time", "duration_minutes", "duration_hours",
-            "transport", "time_window", "poi_count"
+            "transport", "time_window", "poi_count", "pace_mode", "time_flex_minutes"
         ]:
             if field in request_data and field not in preferences:
                 preferences[field] = request_data[field]

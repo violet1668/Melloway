@@ -10,6 +10,17 @@ from services.constraints import (
     parse_time,
 )
 from services.poi_service import get_pois
+from services.pace import (
+    build_pace_info,
+    build_pace_relaxation_notice,
+    get_adjusted_stay_duration,
+    get_base_duration_minutes,
+    get_default_poi_count,
+    get_effective_duration_minutes,
+    get_intensive_poi_count_bonus,
+    normalize_pace_preferences,
+    pace_score_adjustment,
+)
 
 
 THEME_RULES = {
@@ -62,7 +73,7 @@ def normalize_theme(theme):
     return THEME_ALIASES.get(str(theme).strip())
 
 
-def score_blindbox_poi(poi, theme_key, strategy="theme_match"):
+def score_blindbox_poi(poi, theme_key, strategy="theme_match", preferences=None, start_point=None):
     """
     主题匹配、小众程度和体验质量共同决定盲盒候选分。
     """
@@ -95,6 +106,10 @@ def score_blindbox_poi(poi, theme_key, strategy="theme_match"):
     if strategy != "stable":
         score -= poi.get("wait_time", 0) * 0.35
 
+    if preferences and start_point:
+        distance = haversine_km(start_point["lng"], start_point["lat"], poi["lng"], poi["lat"])
+        score += pace_score_adjustment(poi, distance, preferences)
+
     return round(score, 2)
 
 
@@ -105,7 +120,13 @@ def select_blindbox_candidates(pois, start_point, preferences, theme_key, strate
     filtered = filter_pois(pois, start_point, preferences, "blindbox")
 
     for poi in filtered:
-        poi["blindbox_score"] = score_blindbox_poi(poi, theme_key, strategy=strategy)
+        poi["blindbox_score"] = score_blindbox_poi(
+            poi,
+            theme_key,
+            strategy=strategy,
+            preferences=preferences,
+            start_point=start_point
+        )
 
     filtered = sorted(
         filtered,
@@ -123,11 +144,17 @@ def build_blindbox_route(start_point, candidate_pois, preferences, theme_key, st
     if not candidate_pois:
         return None
 
-    duration_minutes = preferences.get("duration_minutes", 240)
+    duration_minutes = get_effective_duration_minutes(preferences)
     time_window = preferences.get("time_window", ["10:00", "18:00"])
     transport = preferences.get("transport", "walk")
     budget = preferences.get("budget", 300)
-    poi_count = min(int(preferences.get("poi_count", 3) or 3), len(candidate_pois))
+    requested_poi_count = preferences.get("poi_count")
+    if requested_poi_count:
+        poi_count = int(requested_poi_count)
+    else:
+        poi_count = get_default_poi_count(get_base_duration_minutes(preferences))
+        poi_count += get_intensive_poi_count_bonus(preferences)
+    poi_count = min(poi_count, len(candidate_pois))
 
     seed = f"{theme_key}:{strategy}:{route_index}:{round(start_point['lng'], 3)}:{round(start_point['lat'], 3)}:{duration_minutes}:{budget}"
     shuffled_candidates = list(candidate_pois[:12])
@@ -154,7 +181,8 @@ def build_blindbox_route(start_point, candidate_pois, preferences, theme_key, st
 
         distance_km = haversine_km(current_point["lng"], current_point["lat"], poi["lng"], poi["lat"])
         travel_minutes = estimate_travel_minutes(distance_km, transport)
-        projected_total_time = total_time + travel_minutes + poi.get("wait_time", 0) + poi.get("stay_duration", 0)
+        stay_duration = get_adjusted_stay_duration(poi, preferences)
+        projected_total_time = total_time + travel_minutes + poi.get("wait_time", 0) + stay_duration
         projected_total_cost = total_cost + poi.get("price", 0)
 
         if projected_total_time > duration_minutes:
@@ -164,8 +192,12 @@ def build_blindbox_route(start_point, candidate_pois, preferences, theme_key, st
             continue
 
         arrive_time = current_time + timedelta(minutes=travel_minutes)
-        leave_time = arrive_time + timedelta(minutes=poi.get("wait_time", 0) + poi.get("stay_duration", 0))
+        leave_time = arrive_time + timedelta(minutes=poi.get("wait_time", 0) + stay_duration)
         poi_detail = dict(poi)
+        original_stay_duration = int(poi.get("stay_duration", 0) or 0)
+        poi_detail["stay_duration"] = stay_duration
+        if stay_duration != original_stay_duration:
+            poi_detail["original_stay_duration"] = original_stay_duration
         poi_detail["arrive_time"] = arrive_time.strftime("%H:%M")
         poi_detail["leave_time"] = leave_time.strftime("%H:%M")
 
@@ -179,7 +211,7 @@ def build_blindbox_route(start_point, candidate_pois, preferences, theme_key, st
 
         selected.append(poi_detail)
         total_cost += poi.get("price", 0)
-        total_time += travel_minutes + poi.get("wait_time", 0) + poi.get("stay_duration", 0)
+        total_time += travel_minutes + poi.get("wait_time", 0) + stay_duration
         total_wait_time += poi.get("wait_time", 0)
         total_travel_time += travel_minutes
         total_distance += distance_km
@@ -202,11 +234,12 @@ def build_blindbox_route(start_point, candidate_pois, preferences, theme_key, st
         "total_travel_time": total_travel_time,
         "total_distance": round(total_distance, 2),
         "search_radius_km": round(infer_search_radius_km(duration_minutes, transport), 2),
-        "option_type": "blindbox"
+        "option_type": "blindbox",
+        "pace_info": build_pace_info(preferences)
     }
 
 
-def build_option_from_route(route, theme_key):
+def build_option_from_route(route, theme_key, preferences):
     """
     构建盲盒揭晓后的路线详情。内容不暴露内部生成策略。
     """
@@ -216,7 +249,10 @@ def build_option_from_route(route, theme_key):
         f"共 {len(route['pois'])} 个地点，预计 {route['total_time']} 分钟。"
     )
     explanation = "这条路线由系统在主题匹配、时间预算和探索体验之间综合生成。"
-    relaxation_notice = "该盲盒路线遵守你的预算、排队和时间限制。"
+    relaxation_notice = (
+        build_pace_relaxation_notice(route, preferences)
+        or "该盲盒路线遵守你的预算、排队和时间限制。"
+    )
     differentiation_reason = "该路线围绕所选盲盒主题生成，并与其他盲盒路线保持地点组合差异。"
 
     return {
@@ -231,6 +267,7 @@ def build_option_from_route(route, theme_key):
         "explanation": explanation,
         "relaxation_notice": relaxation_notice,
         "differentiation_reason": differentiation_reason,
+        "pace_info": build_pace_info(preferences),
         "pois": route["pois"],
         "segments": route["segments"],
         "total_cost": route["total_cost"],
@@ -294,7 +331,7 @@ def generate_blindbox_route(start_point=None, preferences=None, user_prefs=None)
 
     支持 theme / blind_box_theme，使用本地 POI 和规则评分，不接入真实 API 或 LLM。
     """
-    preferences = dict(preferences or {})
+    preferences = normalize_pace_preferences(preferences or {})
     raw_start = start_point or preferences.get("start") or preferences.get("start_location")
     if not raw_start:
         return {
@@ -327,6 +364,7 @@ def generate_blindbox_route(start_point=None, preferences=None, user_prefs=None)
     preferences.setdefault("duration_minutes", 240)
     preferences.setdefault("transport", "walk")
     preferences.setdefault("time_window", ["10:00", "18:00"])
+    preferences = normalize_pace_preferences(preferences)
 
     theme_key = normalize_theme(preferences.get("theme") or preferences.get("blind_box_theme"))
     if not theme_key:
@@ -357,7 +395,7 @@ def generate_blindbox_route(start_point=None, preferences=None, user_prefs=None)
 
     blind_boxes = []
     for index, route in enumerate(routes, start=1):
-        option = build_option_from_route(route, theme_key)
+        option = build_option_from_route(route, theme_key, preferences)
         route["summary"] = option["summary"]
         blind_boxes.append({
             "box_id": f"box_{index}",
@@ -380,5 +418,6 @@ def generate_blindbox_route(start_point=None, preferences=None, user_prefs=None)
         "theme": theme_key,
         "theme_name": THEME_RULES[theme_key]["name"],
         "blind_box_info": blind_box_info,
+        "pace_info": build_pace_info(preferences),
         "blind_boxes": blind_boxes
     }
