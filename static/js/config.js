@@ -1,6 +1,7 @@
 // API 配置
 const API_CONFIG = {
   generateUrl: "/api/routes/generate",
+  blindBoxUrl: "/api/routes/blind-box",
   fallbackUrl: "/api/generate_route"
 };
 
@@ -8,8 +9,26 @@ const API_CONFIG = {
 const OPTION_NAMES = {
   demand_satisfaction: "体验优先方案",
   hard_constraint: "精打细算方案",
-  preference_insight: "个性化方案"
+  preference_insight: "个性化方案",
+  blindbox: "神秘盲盒路线"
 };
+
+const PLAN_DIFF_LABELS = {
+  demand_satisfaction: ["偏好优先", "更贴近当前需求"],
+  hard_constraint: ["预算时间更稳", "少排队"],
+  preference_insight: ["历史偏好", "小众洞察"]
+};
+
+const PLAN_EXPLANATION_FALLBACK = {
+  demand_satisfaction: "优先满足你本次输入的偏好和想去体验。",
+  hard_constraint: "更稳地控制预算、时间和排队成本。",
+  preference_insight: "结合历史偏好与小众线索补充推荐。",
+  blindbox: "根据你选择的方向和历史偏好，系统为你抽了一条惊喜路线。"
+};
+
+function normalizePlanType(option) {
+  return option?.type || option?.plan_type || "demand_satisfaction";
+}
 
 function optionName(type) {
   return OPTION_NAMES[type] || type;
@@ -21,6 +40,19 @@ const PLAN_THEMES = {
   hard_constraint: "theme-cool",
   preference_insight: "theme-rose"
 };
+
+const POI_OPTIONS = [
+  { id: "poi_001", name: "湖滨杭帮菜小馆", type: "restaurant", category: "杭帮菜", area: "湖滨" },
+  { id: "poi_002", name: "龙井茶舍体验馆", type: "tea_house", category: "茶馆", area: "西湖" },
+  { id: "poi_003", name: "南山路手冲实验室", type: "cafe", category: "咖啡", area: "南山路" },
+  { id: "poi_004", name: "西湖断桥观景点", type: "attraction", category: "景点", area: "西湖" },
+  { id: "poi_005", name: "桥西历史街区", type: "scenic", category: "街区", area: "拱宸桥" },
+  { id: "poi_006", name: "武林夜市小吃线", type: "food_street", category: "小吃", area: "武林" },
+  { id: "poi_007", name: "满觉陇桂花步道", type: "walk", category: "citywalk", area: "满觉陇" },
+  { id: "poi_008", name: "小河直街慢生活区", type: "scenic", category: "街区", area: "拱墅" },
+  { id: "poi_009", name: "良渚文化艺术角", type: "museum", category: "文化", area: "良渚" },
+  { id: "poi_010", name: "凤起旧巷散步线", type: "walk", category: "citywalk", area: "凤起路" }
+];
 
 // POI 类型到 SVG 图标的映射（使用 Lucide 风格的内联 SVG）
 const POI_ICONS = {

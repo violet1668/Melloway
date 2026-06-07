@@ -1,3 +1,5 @@
+import json
+import os
 import random
 from datetime import timedelta
 
@@ -21,6 +23,15 @@ from services.pace import (
     normalize_pace_preferences,
     pace_score_adjustment,
 )
+
+
+def _load_user_profile():
+    profile_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'user_profile.json')
+    try:
+        with open(profile_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
 
 
 THEME_RULES = {
@@ -73,9 +84,9 @@ def normalize_theme(theme):
     return THEME_ALIASES.get(str(theme).strip())
 
 
-def score_blindbox_poi(poi, theme_key, strategy="theme_match", preferences=None, start_point=None):
+def score_blindbox_poi(poi, theme_key, strategy="theme_match", preferences=None, start_point=None, user_profile=None):
     """
-    主题匹配、小众程度和体验质量共同决定盲盒候选分。
+    主题匹配、小众程度、体验质量和用户历史偏好共同决定盲盒候选分。
     """
     theme = THEME_RULES[theme_key]
     tags = set(poi.get("tags", []))
@@ -83,12 +94,68 @@ def score_blindbox_poi(poi, theme_key, strategy="theme_match", preferences=None,
     score = poi.get("rating", 0) * 18
     score += theme_hits * 14
 
-    if poi.get("type") in theme["types"]:
+    theme_types = set(theme["types"])
+    poi_type = poi.get("type", "")
+    if isinstance(poi_type, list):
+        poi_type = ",".join(poi_type)
+    poi_types = {t.strip() for t in str(poi_type).split(",") if t.strip()}
+    if poi_types.intersection(theme_types):
         score += 18
 
     if poi.get("is_hidden_gem"):
         score += 16
 
+    # ---- 用户历史偏好调整 ----
+    if user_profile:
+        history = user_profile.get("history_behavior", {})
+        explicit = user_profile.get("explicit_preferences", {})
+
+        visited_ids = set(history.get("visited_poi_ids", []))
+        liked_types = set(history.get("liked_poi_types", []))
+        frequent_tags = set(history.get("frequent_tags", []))
+        avoid_ids = set(history.get("avoid_poi_ids", []))
+
+        preferred_tags = set(explicit.get("preferred_tags", []))
+        disliked_tags = set(explicit.get("disliked_tags", []))
+        favorite_cuisines = set(explicit.get("favorite_cuisines", []))
+
+        # 已去过：大幅降分，避免重复推荐
+        if poi.get("id") in visited_ids:
+            score -= 35
+
+        # 明确避开：直接排除
+        if poi.get("id") in avoid_ids:
+            score -= 60
+
+        # 喜欢的地点类型：加分
+        poi_type = poi.get("type", "")
+        if isinstance(poi_type, list):
+            poi_type = ",".join(poi_type)
+        poi_types = {t.strip() for t in str(poi_type).split(",") if t.strip()}
+        if poi_types.intersection(liked_types):
+            score += 12
+
+        # 常选标签匹配：加分
+        history_tag_hits = len(tags.intersection(frequent_tags))
+        score += history_tag_hits * 8
+
+        # 偏好标签匹配：加分
+        pref_tag_hits = len(tags.intersection(preferred_tags))
+        score += pref_tag_hits * 6
+
+        # 不喜欢标签匹配：减分
+        dislike_hits = len(tags.intersection(disliked_tags))
+        score -= dislike_hits * 15
+
+        # 偏好菜系匹配
+        cuisine = poi.get("category", "") or poi.get("cuisine", "")
+        if isinstance(cuisine, list):
+            cuisine = ",".join(cuisine)
+        cuisine_set = {c.strip() for c in str(cuisine).split(",") if c.strip()}
+        if cuisine_set.intersection(favorite_cuisines):
+            score += 10
+
+    # ---- 策略调整 ----
     if strategy == "stable":
         score -= poi.get("wait_time", 0) * 1.2
         score -= poi.get("price", 0) * 0.12
@@ -113,9 +180,9 @@ def score_blindbox_poi(poi, theme_key, strategy="theme_match", preferences=None,
     return round(score, 2)
 
 
-def select_blindbox_candidates(pois, start_point, preferences, theme_key, strategy="theme_match"):
+def select_blindbox_candidates(pois, start_point, preferences, theme_key, strategy="theme_match", user_profile=None):
     """
-    先按基础约束过滤，再按主题得分排序。
+    先按基础约束过滤，再按主题得分 + 用户历史偏好排序。
     """
     filtered = filter_pois(pois, start_point, preferences, "blindbox")
 
@@ -125,7 +192,8 @@ def select_blindbox_candidates(pois, start_point, preferences, theme_key, strate
             theme_key,
             strategy=strategy,
             preferences=preferences,
-            start_point=start_point
+            start_point=start_point,
+            user_profile=user_profile
         )
 
     filtered = sorted(
@@ -243,21 +311,69 @@ def build_blindbox_route(start_point, candidate_pois, preferences, theme_key, st
     }
 
 
-def build_option_from_route(route, theme_key, preferences):
+THEME_USER_FACING = {
+    "citywalk": {
+        "intro": "用漫步的方式串起杭州的街巷角落，适合慢慢走、慢慢发现。",
+        "tags_display": ["街巷漫步", "拍照打卡", "轻松节奏"],
+    },
+    "foodie": {
+        "intro": "把杭州的好味道串在一起，从正餐到甜品都帮你安排好了。",
+        "tags_display": ["本地风味", "咖啡茶饮", "朋友聚餐"],
+    },
+    "culture": {
+        "intro": "带你走进杭州的文化深处，展览、书店、历史街区一次逛完。",
+        "tags_display": ["文化展览", "书店艺术", "历史街区"],
+    },
+    "hidden_gem": {
+        "intro": "避开人群，带你发现杭州那些安静又有味道的小角落。",
+        "tags_display": ["小众探索", "安静放松", "本地宝藏"],
+    },
+}
+
+
+def build_option_from_route(route, theme_key, preferences, user_profile=None):
     """
-    构建盲盒揭晓后的路线详情。内容不暴露内部生成策略。
+    构建盲盒揭晓后的路线详情，用产品化文案替代系统术语。
     """
     theme = THEME_RULES[theme_key]
-    summary = (
-        f"{theme['name']}路线已揭晓：围绕{ '、'.join(theme['tags'][:3]) }安排，"
-        f"共 {len(route['pois'])} 个地点，预计 {route['total_time']} 分钟。"
-    )
-    explanation = "这条路线由系统在主题匹配、时间预算和探索体验之间综合生成。"
-    relaxation_notice = (
-        build_pace_relaxation_notice(route, preferences)
-        or "该盲盒路线遵守你的预算、排队和时间限制。"
-    )
-    differentiation_reason = "该路线围绕所选盲盒主题生成，并与其他盲盒路线保持地点组合差异。"
+    uf = THEME_USER_FACING.get(theme_key, THEME_USER_FACING["citywalk"])
+    poi_names = [p["name"] for p in route["pois"][:3]]
+
+    # 卡片摘要
+    summary = f"{theme['name']}：{' → '.join(poi_names)}，共 {len(route['pois'])} 个地点，约 {route['total_time']} 分钟。"
+
+    # 产品化解释：提及用户历史偏好 + 本条策略特点
+    strategy = preferences.get("_strategy", "theme_match")
+    strategy_descriptions = {
+        "theme_match": "这条路线优先挑选了与「{theme_name}」最匹配的地点，主题感最强。",
+        "stable": "这条路线选了排队少、性价比高的稳妥组合，适合不想有意外的一天。",
+        "hidden_gem": "这条路线偏爱人少安静的小众地点，避开热门，体验更独特。",
+    }
+    intro_parts = [uf["intro"]]
+    intro_parts.append(strategy_descriptions.get(strategy, "").format(theme_name=theme["name"]))
+    if user_profile:
+        history = user_profile.get("history_behavior", {})
+        liked = history.get("liked_poi_types", [])
+        if liked:
+            type_names = {"restaurant": "餐厅", "cafe": "咖啡馆", "scenic": "景点", "museum": "博物馆", "bookstore": "书店", "tea_house": "茶馆", "park": "公园"}
+            liked_cn = [type_names.get(t, t) for t in liked[:3]]
+            intro_parts.append(f"因为你常去{'、'.join(liked_cn)}，这条路线优先推荐了同类地点。")
+    explanation = "".join(intro_parts)
+
+    # 约束说明：更自然的表达
+    budget = preferences.get("budget", 300)
+    duration_hours = preferences.get("duration_minutes", 240) // 60
+    relaxation_notice = build_pace_relaxation_notice(route, preferences)
+    if not relaxation_notice:
+        relaxation_notice = f"路线总花费控制在 ¥{budget} 以内，时长约 {duration_hours} 小时，排队时间也帮你考虑过了。"
+
+    # 路线差异原因：每条路线解释自己与其他两条的不同
+    diff_map = {
+        "theme_match": "这条最贴近「{theme_name}」主题，另外两条分别在稳妥性和小众探索上做了不同取舍。",
+        "stable": "这条最稳妥省心，花费和排队都压得比较低；另外两条一条偏主题感、一条偏小众。",
+        "hidden_gem": "这条最偏小众，选了人少安静的地方；另外两条一条偏主题、一条偏稳妥。",
+    }
+    differentiation_reason = diff_map.get(strategy, diff_map["theme_match"]).format(theme_name=theme["name"])
 
     return {
         "type": "blindbox",
@@ -290,9 +406,10 @@ def route_signature(route):
     return tuple(sorted(poi["id"] for poi in route.get("pois", [])))
 
 
-def generate_three_blindbox_routes(parsed_start, preferences, theme_key):
+def generate_three_blindbox_routes(parsed_start, preferences, theme_key, user_profile=None):
     """
     使用三种内部策略生成 3 条路线，但不把策略暴露给前端。
+    用户历史偏好用于调整 POI 评分。
     """
     strategies = ["theme_match", "stable", "hidden_gem"]
     routes = []
@@ -300,7 +417,10 @@ def generate_three_blindbox_routes(parsed_start, preferences, theme_key):
     pois = get_pois(city=preferences.get("city", "杭州"))
 
     for index, strategy in enumerate(strategies):
-        candidates = select_blindbox_candidates(pois, parsed_start, preferences, theme_key, strategy=strategy)
+        candidates = select_blindbox_candidates(
+            pois, parsed_start, preferences, theme_key,
+            strategy=strategy, user_profile=user_profile
+        )
         route = build_blindbox_route(
             parsed_start,
             candidates,
@@ -381,7 +501,7 @@ def generate_blindbox_route(start_point=None, preferences=None, user_prefs=None)
             "summary": message
         }
 
-    routes = generate_three_blindbox_routes(parsed_start, preferences, theme_key)
+    routes = generate_three_blindbox_routes(parsed_start, preferences, theme_key, user_profile=_load_user_profile())
     if len(routes) < 3:
         message = "当前盲盒主题和约束下无可用路线，请更换主题或放宽预算、时间、排队限制。"
         return {
@@ -397,9 +517,13 @@ def generate_blindbox_route(start_point=None, preferences=None, user_prefs=None)
     shuffle_seed = f"boxes:{theme_key}:{round(parsed_start['lng'], 3)}:{round(parsed_start['lat'], 3)}:{preferences['budget']}:{preferences['duration_minutes']}"
     random.Random(shuffle_seed).shuffle(routes)
 
+    user_profile = _load_user_profile()
+    strategies = ["theme_match", "stable", "hidden_gem"]
     blind_boxes = []
     for index, route in enumerate(routes, start=1):
-        option = build_option_from_route(route, theme_key, preferences)
+        prefs_with_strategy = dict(preferences)
+        prefs_with_strategy["_strategy"] = strategies[(index - 1) % 3]
+        option = build_option_from_route(route, theme_key, prefs_with_strategy, user_profile=user_profile)
         route["summary"] = option["summary"]
         blind_boxes.append({
             "box_id": f"box_{index}",

@@ -16,6 +16,35 @@ const RouteMap = {
     }).addTo(this.map);
   },
 
+  escapeHtml(text) {
+    return String(text)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  },
+
+  buildPoiPopup(poi, index) {
+    const hiddenGem = poi.is_hidden_gem
+      ? '<div class="map-popup-tag">隐藏宝藏</div>'
+      : '';
+    const firstComment = Array.isArray(poi.ugc_comments) && poi.ugc_comments.length
+      ? `<div class="map-popup-comment">“${this.escapeHtml(poi.ugc_comments[0])}”</div>`
+      : '';
+
+    return `
+      <div class="map-popup">
+        <strong>${index + 1}. ${this.escapeHtml(poi.name || '未命名地点')}</strong>
+        ${hiddenGem}
+        <div>到达：${this.escapeHtml(poi.arrive_time || '--')}</div>
+        <div>离开：${this.escapeHtml(poi.leave_time || '--')}</div>
+        <div>人均：¥${Number(poi.price || 0)}</div>
+        ${firstComment}
+      </div>
+    `;
+  },
+
   // 清除地图图层
   clearLayers() {
     if (!this.map) return;
@@ -60,7 +89,7 @@ const RouteMap = {
 
       const marker = L.marker(latLng)
         .addTo(this.map)
-        .bindPopup(`<strong>${index + 1}. ${poi.name}</strong><br>到达：${poi.arrive_time}<br>离开：${poi.leave_time}<br>人均：¥${poi.price}`);
+        .bindPopup(this.buildPoiPopup(poi, index));
 
       this.layers.push(marker);
     });
