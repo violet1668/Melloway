@@ -180,7 +180,8 @@ def build_blindbox_route(start_point, candidate_pois, preferences, theme_key, st
             break
 
         distance_km = haversine_km(current_point["lng"], current_point["lat"], poi["lng"], poi["lat"])
-        travel_minutes = estimate_travel_minutes(distance_km, transport)
+        depart_time_text = current_time.strftime("%H:%M")
+        travel_minutes = estimate_travel_minutes(distance_km, transport, depart_time=depart_time_text)
         stay_duration = get_adjusted_stay_duration(poi, preferences)
         projected_total_time = total_time + travel_minutes + poi.get("wait_time", 0) + stay_duration
         projected_total_cost = total_cost + poi.get("price", 0)
@@ -206,7 +207,10 @@ def build_blindbox_route(start_point, candidate_pois, preferences, theme_key, st
             "to": poi["name"],
             "transport": transport,
             "duration": travel_minutes,
-            "distance": round(distance_km, 2)
+            "distance": round(distance_km, 2),
+            "distance_type": "haversine_estimated",
+            "time_estimation": "speed_detour_peak_factor",
+            "traffic_note": "移动时间基于距离、出行方式和时段系数估算，未接入实时路况。"
         })
 
         selected.append(poi_detail)

@@ -76,22 +76,62 @@ def parse_start_point(start):
 
 
 
-def estimate_travel_minutes(distance_km, transport):
+def _is_time_in_window(time_text, start_text, end_text):
+    try:
+        current = parse_time(time_text).time()
+        start = parse_time(start_text).time()
+        end = parse_time(end_text).time()
+    except (TypeError, ValueError):
+        return False
+
+    return start <= current <= end
+
+
+def get_peak_factor(transport, depart_time=None):
+    """
+    根据出发时间返回轻量高峰时段系数。
+    """
+    if transport not in {"bike", "drive"} or not depart_time:
+        return 1.0
+
+    if _is_time_in_window(depart_time, "07:30", "09:30"):
+        return 1.4 if transport == "drive" else 1.1
+
+    if _is_time_in_window(depart_time, "17:00", "19:00"):
+        return 1.5 if transport == "drive" else 1.1
+
+    return 1.0
+
+
+def estimate_travel_minutes(distance_km, transport, depart_time=None):
     """
     根据距离和出行方式估算交通时间。
 
     walk：约 4.5 km/h
     bike：约 12 km/h
     drive：约 25 km/h
+
+    基于直线距离进行轻量估算：
+    - 先乘以不同出行方式的道路绕行系数；
+    - 再按出发时间叠加简单高峰时段系数；
+    - 不接入实时路况或外部地图 API。
     """
     speed_map = {
         "walk": 4.5,
         "bike": 12,
         "drive": 25
     }
+    detour_factor_map = {
+        "walk": 1.15,
+        "bike": 1.25,
+        "drive": 1.35
+    }
 
     speed = speed_map.get(transport, 4.5)
-    return max(1, int(distance_km / speed * 60))
+    detour_factor = detour_factor_map.get(transport, 1.15)
+    peak_factor = get_peak_factor(transport, depart_time)
+    estimated_distance = distance_km * detour_factor
+    return max(1, int(estimated_distance / speed * 60 * peak_factor))
 
 
 def haversine_km(lng1, lat1, lng2, lat2):

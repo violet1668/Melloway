@@ -230,6 +230,15 @@ class TestRouteEngine(unittest.TestCase):
             self.assertTrue(option["relaxation_notice"])
             self.assertTrue(option["differentiation_reason"])
 
+    def test_route_segments_include_time_estimation_metadata(self):
+        result = generate_route_plan(self._differentiation_request())
+        first_success = next(option for option in result["options"] if option["success"])
+        first_segment = first_success["segments"][0]
+
+        self.assertEqual(first_segment["distance_type"], "haversine_estimated")
+        self.assertEqual(first_segment["time_estimation"], "speed_detour_peak_factor")
+        self.assertIn("未接入实时路况", first_segment["traffic_note"])
+
     def test_hard_constraint_route_keeps_total_cost_within_budget(self):
         request_data = self._differentiation_request()
         preferences = request_data["preferences"]
