@@ -217,6 +217,38 @@
               </div>
             </div>
           </div>
+
+          <!-- AI 能力卡片 -->
+          <div class="bento-card bento-features">
+            <span class="bento-emoji">&#x1F9E0;</span>
+            <h3>AI 路线引擎</h3>
+            <ul class="feature-list">
+              <li>综合预算、排队与偏好</li>
+              <li>生成三种可比较方案</li>
+              <li>点击查看动态路线地图</li>
+            </ul>
+          </div>
+
+          <!-- DIY 必去点 -->
+          <div class="bento-card bento-diy">
+            <div class="diy-poi-picker">
+              <div class="diy-poi-header">
+                <span class="bento-emoji">&#x2728;</span>
+                <div>
+                  <h3>我还想去这些地方</h3>
+                  <p>不满意？先加 1-3 个想去地点，再重新生成路线。</p>
+                </div>
+              </div>
+              <div class="diy-poi-controls">
+                <select id="mustVisitPoiSelect">
+                  <option value="">选择一个想去地点</option>
+                </select>
+                <button type="button" class="btn-add-poi" id="addPoiBtn">添加地点</button>
+              </div>
+              <div class="poi-chip-list" id="selectedPoiChips"></div>
+              <input id="must_visit_pois" type="hidden" value="">
+            </div>
+          </div>
         </div>
       </section>
 
@@ -325,6 +357,7 @@
       <h2 class="results-heading">为你生成三种方案</h2>
       <div id="assumptionsPanel"></div>
       <div id="friendCenterBanner"></div>
+      <div class="preference-insight-panel" id="preferenceInsightPanel" style="display: none;"></div>
       <div class="cards" id="results"></div>
     </section>
 
