@@ -1,147 +1,182 @@
-# Melloway — AI 本地路线智能规划系统
+<p align="center">
+  <sub>中文 · <a href="#-english">English</a></sub>
+</p>
 
-> 少想一点，马上出发。
+<p align="center">
+  <h1 align="center">Melloway</h1>
+  <p align="center"><em>少想一点，马上出发</em></p>
+</p>
 
-**在线体验**：[https://ai-local-route-engine.onrender.com](https://ai-local-route-engine.onrender.com)
+<p align="center">
+  <a href="https://ai-local-route-engine.onrender.com"><img src="https://img.shields.io/badge/Demo-Online-2ea44f?style=flat-square" alt="Demo Online"></a>
+  <img src="https://img.shields.io/badge/Flask-3.x-000000?style=flat-square&logo=flask" alt="Flask">
+  <img src="https://img.shields.io/badge/JavaScript-Vanilla-f7df1e?style=flat-square&logo=javascript" alt="Vanilla JS">
+  <img src="https://img.shields.io/badge/Map-Leaflet-199900?style=flat-square&logo=leaflet" alt="Leaflet">
+  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
+  <img src="https://img.shields.io/badge/Stage-MVP-ff69b4?style=flat-square" alt="MVP">
+</p>
 
-Melloway 是一个面向本地生活路线规划场景的 Web Demo。用户输入出行想法后，系统结合 POI 数据、UGC 评价与用户偏好，同时生成三条可比较的路线方案，并在交互式地图中展示。项目以杭州为示例城市，使用 Mock 数据模拟完整 AI 路线规划流程。
+<br>
 
----
+> Melloway 会根据你的时间、偏好和同行情况生成三条城市路线，也能用盲盒模式带来一点惊喜，用特种兵模式帮你玩得更高效，让每次出门少一点纠结，多一点刚刚好。
 
-## 产品演示
+<br>
 
-当前版本完成以下主流程：
+<p align="center">
+  <img src="docs/assets/hero_intro.gif" alt="Melloway Hero" width="800">
+</p>
 
-```
-用户输入出行想法
-  → AI 解析偏好与约束（预算、排队、时长、口味、同行人）
-  → 同时生成三条差异化路线方案
-  → 三方案卡片对比（翻转查看路线预览）
-  → 查看完整路线 → 地图展示 POI 与路线连线
-```
+<br>
 
-### 核心功能
+## 在线体验
 
-**三方案对比**
-系统一次生成三种策略路线，不做单一推荐，让用户自己比较选择：
-- **体验优先方案** — 优先满足偏好，预算和时间可略微放宽
-- **精打细算方案** — 严格遵守预算、排队和时长限制
-- **个性化方案** — 基于用户画像、历史偏好与小众洞察
+<p align="center">
+  <a href="https://ai-local-route-engine.onrender.com"><strong>ai-local-route-engine.onrender.com</strong></a>
+ 
+</p>
 
-**路线盲盒**
-不想思考时，选择一个主题（Citywalk / 吃吃喝喝 / 文化之旅 / 小众探索），系统随机生成三条神秘路线。卡片点击展开揭晓内容，再次点击折叠——自己决定什么时候看、看哪条。
+<br>
 
-**DIY 必去点**
-路线生成后，可以添加 1-3 个必去地点，系统据此重新规划路线。已加入的显示确认标记，暂未加入的会说明原因。
+## 产品展示
 
-**行程条件全局控制**
-- 出发地、时长（2h/4h/6h/8h）、预算（¥100-800）、排队容忍度
-- 出行方式（步行/骑行/驾车）、出发时间
-- 游玩节奏（标准 / 特种兵）+ 弹性加时（+0/+30m/+60m）
+<p align="center">
+  <strong>行程条件</strong><br>
+  <img src="docs/assets/screenshot-pace.png" alt="行程条件" width="800">
+</p>
 
-**个性化**
-- 同行画像：亲子家庭、带父母、情侣约会、朋友出游、单人 Citywalk
-- 体验偏好：餐饮、拍照、文化、自然、逛街、夜景、小众、放松
-- 路线约束：少走路、低预算、避开排队、室内优先、半日、天黑前结束
+<p align="center">
+  <strong>三方案卡片对比</strong><br>
+  <img src="docs/assets/screenshot-cards.png" alt="方案卡片" width="800">
+</p>
 
-**路线详情 & 地图**
-- 每个 POI 显示到达/离开时间、人均消费、排队时间
-- 隐藏宝藏标签标记小众地点
-- UGC 评论：「去过的人这样说」
-- Leaflet 交互地图：POI 标记 + 路线连线 + 自动缩放
+<p align="center">
+  <strong>路线详情 + 地图</strong><br>
+  <img src="docs/assets/screenshot-detail.png" alt="路线详情" width="800">
+</p>
 
-**自然语言解析**
-支持用户只输入自然语言描述，系统自动提取餐饮偏好、场景标签、预算、时长和排队倾向。未填写的字段由系统默认假设补齐，并在结果中透明展示。
 
-**体验评分**
-每条路线展示五维评分（舒适 / 社交 / 浪漫 / 家庭 / 强度），帮助用户快速判断路线调性。
+<br>
 
----
+## 核心功能
 
-## 技术栈
+<table>
+  <tr>
+    <td width="50%">
+      <strong>🔀 三方案对比</strong><br>
+      <sub>一次生成三条不同策略的路线：体验优先、精打细算、个性化推荐。每条路线附带五维评分（舒适 / 社交 / 浪漫 / 家庭 / 强度），鼠标悬停卡片即翻转查看路线预览。</sub>
+    </td>
+    <td width="50%">
+      <strong>🎁 路线盲盒</strong><br>
+      <sub>不想思考时选一个主题（Citywalk / 吃吃喝喝 / 文化之旅 / 小众探索），系统随机生成三条神秘路线。点击卡片展开揭晓，再点折叠收起</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>📍 DIY 必去地点</strong><br>
+      <sub>路线生成后添加 1-3 个必去地点，系统据此重新规划路线。已加入的标记确认，暂未纳入的说明原因（预算、距离或排队限制）。</sub>
+    </td>
+    <td width="50%">
+      <strong>⚡ 特种兵模式</strong><br>
+      <sub>标准 / 特种兵双节奏切换，弹性加时 0-60 分钟。特种兵模式优先紧凑顺路的 POI，不粗暴压缩所有停留时间。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>💬 UGC 评论 + 隐藏宝藏</strong><br>
+      <sub>每个 POI 展示去过的人的真实评论。小众地点自动标记「隐藏宝藏」标签，让探索多一层惊喜。</sub>
+    </td>
+    <td width="50%">
+      <strong>🗺️ 地图路线可视化</strong><br>
+      <sub>Leaflet 交互地图自动展示 POI 标记与路线连线，fitBounds 自动缩放到最佳视野。起点、途经点、终点一目了然。</sub>
+    </td>
+  </tr>
+</table>
 
-| 层 | 技术 |
-|---|---|
-| 后端 | Python / Flask |
-| 前端 | 原生 HTML + CSS + JavaScript |
-| 地图 | Leaflet + OpenStreetMap |
-| 数据 | 杭州 Mock POI（30+ 地点）、Mock 用户画像、模拟 UGC 评论 |
-| 无外部 API 依赖 | 不使用真实 LLM、地图 API 或 POI 服务 |
+<br>
 
----
+## 为什么不是普通路线规划
 
-## 项目结构
+大多数地图工具只做一件事：**给你一条从 A 到 B 的最短路径**。
 
-```
-├── app.py                  # Flask 入口，路由定义
-├── services/               # 后端核心模块
-│   ├── route_engine.py     # 三方案路线生成引擎
-│   ├── blindbox.py         # 盲盒路线生成
-│   ├── constraints.py      # 预算/排队/营业时间约束过滤
-│   ├── scoring.py          # POI 多维度评分
-│   ├── persona.py          # 用户画像匹配
-│   ├── explanation.py      # 方案解释生成
-│   ├── pace.py             # 节奏模式与弹性时间
-│   ├── poi_service.py      # POI 数据读取
-│   └── user_service.py     # 用户画像读取与自然语言解析
-├── data/                   # Mock 数据
-│   ├── poi_hangzhou.json   # 杭州 POI 数据
-│   ├── landmarks_hangzhou.json
-│   └── user_profile.json   # 模拟用户画像
-├── templates/
-│   └── index.html          # SPA 页面
-├── static/
-│   ├── js/
-│   │   ├── config.js       # API 配置、POI 数据、图表映射
-│   │   ├── main.js         # 前端主逻辑
-│   │   └── map.js          # Leaflet 地图封装
-│   └── css/
-│       └── style.css       # 全局样式
-├── docs/                   # 接口契约与演示脚本
-└── tests/                  # 后端测试
-```
+Melloway 做了一个不同的选择：把预算、排队时间、营业时间、口味偏好、同行人身份、游玩节奏**同时放进路线决策里**，然后给出三条策略不同的可比较方案，而不是替用户选一个「最优解」。
 
----
+**三条方案，三个视角**。用户自己决定今天是精打细算、尽情体验、还是试试不一样的。
+
+<br>
 
 ## 本地运行
 
 ```bash
-# 1. 克隆仓库
 git clone https://github.com/violet1668/Melloway.git
 cd Melloway
-
-# 2. 创建虚拟环境并安装依赖
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
-# 3. 启动服务
-python app.py
-
-# 4. 浏览器打开
-open http://127.0.0.1:5000
+python3 app.py
+# 打开 http://127.0.0.1:5000
 ```
 
+<br>
+
+## 技术栈
+
+| 层 | 选型 |
+|---|---|
+| 后端 | Python · Flask |
+| 前端 | Vanilla JS · CSS 3D Transform · SVG 动画 |
+| 地图 | Leaflet · OpenStreetMap |
+| 数据 | 杭州 Mock POI（30+ 地点）· 模拟用户画像 · UGC 评论 |
+| 部署 | Render |
+
+<br>
+
+## 项目结构
+
+```
+├── app.py                Flask 入口
+├── services/             后端服务（11 模块）
+│   ├── route_engine.py   三方案路线引擎
+│   ├── blindbox.py       盲盒生成
+│   ├── pace.py           节奏模式
+│   ├── constraints.py    约束过滤
+│   ├── scoring.py        POI 评分
+│   ├── persona.py        用户画像
+│   └── ...
+├── data/                 Mock 数据
+├── templates/            SPA 页面
+├── static/               前端 JS + CSS
+├── docs/                 API 契约 · 演示脚本
+└── tests/                后端测试
+```
+
+<br>
+
+## 团队
+
+| 角色 | 成员 |
+|---|---|
+| 后端与部署 | Vio |
+| 前端与 UI 设计 | Uin |
+| 产品设计与用户调研 | 共同完成 |
+
+<br>
+
+## 当前阶段
+
+路线引擎、约束过滤、POI 评分、画像匹配、盲盒、特种兵模式等核心模块已完成并可通过 API 调用。前端三方案卡片、翻转动画、盲盒折叠、DIY 重生成、地图可视化均已在线上运行。
+
+<br>
+
 ---
 
-## API 接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/` | 首页 |
-| POST | `/api/routes/generate` | 标准路线生成（含 DIY） |
-| POST | `/api/routes/blind-box` | 盲盒路线 |
+<p align="center">
+  <sub>Built with ❤️ for Demo Day · MIT License</sub>
+</p>
 
 ---
 
-## 开发说明
+## 🇬🇧 English
 
-- 本项目为 MVP / 学习型项目，优先保证功能可运行、可展示
-- 使用杭州 Mock 数据，不接入真实 API
-- 当前 MVP 阶段仅开放标准路线和盲盒路线两种模式
+Melloway is an AI-powered local route planner. Describe your ideal day out in one sentence — the system generates three comparable route plans with different strategies, each considering your budget, wait tolerance, preferences, and pace. Built with Flask, Vanilla JS, and Leaflet. Currently a demo-stage MVP using Hangzhou mock data.
 
----
-
-## License
-
-MIT
+**Live demo**: [ai-local-route-engine.onrender.com](https://ai-local-route-engine.onrender.com)
