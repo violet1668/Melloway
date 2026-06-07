@@ -1,9 +1,12 @@
+from datetime import timedelta
+
 from services.constraints import (
     estimate_travel_minutes,
     haversine_km,
     infer_search_radius_km,
     is_open_during_visit,
     is_valid_coordinate,
+    parse_time,
 )
 from services.poi_service import get_pois
 from services.pace import (
@@ -143,6 +146,7 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
 
     duration_minutes = get_effective_duration_minutes(preferences)
     transport = preferences.get("transport", "walk")
+    time_window = preferences.get("time_window", ["10:00", "18:00"])
     requested_poi_count = preferences.get("poi_count")
     if requested_poi_count:
         poi_count = int(requested_poi_count)
@@ -154,6 +158,7 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
     selected = []
     segments = []
     current_point = center_point
+    current_time = parse_time(time_window[0])
     total_cost = 0
     total_time = 0
     total_wait_time = 0
@@ -165,7 +170,8 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
             break
 
         distance_km = haversine_km(current_point["lng"], current_point["lat"], poi["lng"], poi["lat"])
-        travel_minutes = estimate_travel_minutes(distance_km, transport)
+        depart_time_text = current_time.strftime("%H:%M")
+        travel_minutes = estimate_travel_minutes(distance_km, transport, depart_time=depart_time_text)
         stay_duration = get_adjusted_stay_duration(poi, preferences)
         projected_total_time = total_time + travel_minutes + poi.get("wait_time", 0) + stay_duration
 
@@ -185,7 +191,10 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
             "to": poi["name"],
             "transport": transport,
             "duration": travel_minutes,
-            "distance": round(distance_km, 2)
+            "distance": round(distance_km, 2),
+            "distance_type": "haversine_estimated",
+            "time_estimation": "speed_detour_peak_factor",
+            "traffic_note": "移动时间基于距离、出行方式和时段系数估算，未接入实时路况。"
         })
 
         total_cost += poi.get("price", 0)
@@ -193,6 +202,7 @@ def build_friends_route(center_point, candidate_pois, preferences, friend_locati
         total_wait_time += poi.get("wait_time", 0)
         total_travel_time += travel_minutes
         total_distance += distance_km
+        current_time = current_time + timedelta(minutes=travel_minutes + poi.get("wait_time", 0) + stay_duration)
         current_point = {"lng": poi["lng"], "lat": poi["lat"]}
 
     if not selected:

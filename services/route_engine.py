@@ -614,7 +614,8 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
             next_poi["lng"],
             next_poi["lat"],
         )
-        travel_minutes = estimate_travel_minutes(distance_km, transport)
+        depart_time_text = current_time.strftime("%H:%M")
+        travel_minutes = estimate_travel_minutes(distance_km, transport, depart_time=depart_time_text)
 
         arrive_time = current_time + timedelta(minutes=travel_minutes)
         stay_duration = get_adjusted_stay_duration(next_poi, preferences)
@@ -657,7 +658,10 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
             "to": next_poi["name"],
             "transport": transport,
             "duration": travel_minutes,
-            "distance": round(distance_km, 2)
+            "distance": round(distance_km, 2),
+            "distance_type": "haversine_estimated",
+            "time_estimation": "speed_detour_peak_factor",
+            "traffic_note": "移动时间基于距离、出行方式和时段系数估算，未接入实时路况。"
         })
 
         selected.append(poi_detail)

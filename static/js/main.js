@@ -126,6 +126,35 @@ function renderMatchedReasons(reasons, limit = 2) {
   `;
 }
 
+function transportName(transport) {
+  const names = {
+    walk: '步行',
+    bike: '骑行',
+    drive: '驾车'
+  };
+  return names[transport] || transport || '步行';
+}
+
+function renderRouteSegments(segments) {
+  if (!segments || !segments.length) return '';
+
+  const trafficNote = segments.find(segment => segment.traffic_note)?.traffic_note;
+  const segmentItems = segments.map(segment => `
+    <li>
+      <strong>${segment.from} → ${segment.to}</strong>
+      <span>${transportName(segment.transport)}约 ${segment.duration} 分钟，约 ${segment.distance} km</span>
+    </li>
+  `).join('');
+
+  return `
+    <div class="segment-section">
+      <h4>路段移动时间</h4>
+      <ul class="segment-list">${segmentItems}</ul>
+      ${trafficNote ? `<p class="traffic-note">${trafficNote}</p>` : ''}
+    </div>
+  `;
+}
+
 // ========== SVG 路线预览生成 ==========
 
 function generateMiniRouteSVG(planType, pois) {
@@ -260,6 +289,9 @@ function renderOption(option, index) {
   const personaContext = option.persona_context || route.persona_context;
   const matchedReasons = option.matched_reasons || route.matched_reasons || [];
   const qualityScores = option.quality_scores || route.quality_scores;
+  const routeTransport = route.segments && route.segments.length
+    ? route.segments[0].transport
+    : 'walk';
 
   const routeSvgHtml = generateMiniRouteSVG(option.type, route.pois);
 
@@ -277,6 +309,7 @@ function renderOption(option, index) {
             <span>${route.pois.length} 个地点</span>
             <span>约 ${route.total_time} 分钟</span>
             <span>约 ¥${route.total_cost}</span>
+            <span>${transportName(routeTransport)}</span>
             ${totalWait > 0 ? `<span>排队约 ${totalWait} 分钟</span>` : ''}
           </div>
           <button class="btn-mobile-full-route" onclick="showFullRoute(${index}, event)">查看完整路线</button>
@@ -292,6 +325,7 @@ function renderOption(option, index) {
             <div class="back-metrics">
               <span>${route.total_time} 分钟</span>
               <span>¥${route.total_cost}</span>
+              <span>${transportName(routeTransport)}</span>
               ${totalWait > 0 ? `<span>排队 ${totalWait} 分钟</span>` : ''}
             </div>
           </div>
@@ -352,7 +386,11 @@ function showFullRoute(index, event) {
     </li>
   `).join('');
 
-  document.getElementById('detailPois').innerHTML = `<h4>路线详情</h4><ul class="poi-list">${poiListHtml}</ul>`;
+  document.getElementById('detailPois').innerHTML = `
+    <h4>路线详情</h4>
+    <ul class="poi-list">${poiListHtml}</ul>
+    ${renderRouteSegments(route.segments)}
+  `;
 
   detailSection.style.display = 'block';
   RouteMap.init();
@@ -474,6 +512,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initChipGroup(
     document.getElementById('durationChips'),
     document.getElementById('duration_minutes')
+  );
+
+  initChipGroup(
+    document.getElementById('startTimeChips'),
+    document.getElementById('start_time')
+  );
+
+  initChipGroup(
+    document.getElementById('transportChips'),
+    document.getElementById('transport')
   );
 
   // 初始化预算 chips
