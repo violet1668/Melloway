@@ -9,261 +9,150 @@
 </head>
 
 <body>
+  <!-- 顶部导航栏 -->
+  <header class="navbar" id="navbar">
+    <div class="navbar-inner">
+      <a class="navbar-brand" href="#" onclick="scrollToTop()">Melloway</a>
+      <nav class="navbar-links">
+        <a href="#" onclick="scrollToTop()">首页</a>
+        <a href="#inputSection" onclick="scrollToSection('inputSection')">规划路线</a>
+        <a href="#" onclick="scrollToSection('inputSection');switchToMode('blindbox')">路线盲盒</a>
+        <a href="#" onclick="scrollToSection('resultsSection')">方案对比</a>
+      </nav>
+      <button class="navbar-cta" onclick="scrollToSection('inputSection')">开始规划</button>
+    </div>
+  </header>
+
   <main class="page">
-    <!-- Hero 区域 -->
-    <section class="hero">
+    <!-- Hero 区域：完整首屏 -->
+    <section class="hero" id="hero">
       <div class="hero-left">
-        <h1>AI 本地路线智能规划</h1>
-        <p class="hero-tagline">吃什么、去哪逛、排多久、花多少，都在一条路线里安排好。</p>
-        <p class="hero-desc">输入你的出行想法，自动生成多条本地路线。</p>
-        <button class="hero-cta" onclick="scrollToInput()">开始规划</button>
+        <p class="hero-brand">Melloway</p>
+        <h1>少想一点，马上出发</h1>
+        <p class="hero-tagline">不只推荐地点，也帮你一起考虑预算、排队、同行人和游玩节奏</p>
+        <p class="hero-desc">输入一个出行想法，系统会生成多条可比较的路线，点击卡片即可查看动态地图</p>
+        <div class="hero-actions">
+          <button class="hero-cta" onclick="scrollToSection('inputSection')">开始规划路线</button>
+          <button class="hero-cta-secondary" onclick="scrollToSection('inputSection');setTimeout(() => switchToMode('blindbox'), 400)">不想思考？试试路线盲盒</button>
+        </div>
       </div>
       <div class="hero-right">
-        <svg class="hero-illustration" viewBox="0 0 300 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- 网格线 -->
-          <line x1="0" y1="50" x2="300" y2="50" stroke="currentColor" stroke-width="0.5" opacity="0.05"/>
-          <line x1="0" y1="100" x2="300" y2="100" stroke="currentColor" stroke-width="0.5" opacity="0.05"/>
-          <line x1="0" y1="150" x2="300" y2="150" stroke="currentColor" stroke-width="0.5" opacity="0.05"/>
-          <line x1="75" y1="0" x2="75" y2="200" stroke="currentColor" stroke-width="0.5" opacity="0.04"/>
-          <line x1="150" y1="0" x2="150" y2="200" stroke="currentColor" stroke-width="0.5" opacity="0.04"/>
-          <line x1="225" y1="0" x2="225" y2="200" stroke="currentColor" stroke-width="0.5" opacity="0.04"/>
+        <svg class="hero-illustration" viewBox="0 0 340 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- 城市基底网格 -->
+          <rect x="20" y="20" width="300" height="240" rx="20" stroke="currentColor" stroke-width="0.6" opacity="0.08" fill="none"/>
+          <line x1="20" y1="80" x2="320" y2="80" stroke="currentColor" stroke-width="0.4" opacity="0.05"/>
+          <line x1="20" y1="140" x2="320" y2="140" stroke="currentColor" stroke-width="0.4" opacity="0.05"/>
+          <line x1="20" y1="200" x2="320" y2="200" stroke="currentColor" stroke-width="0.4" opacity="0.05"/>
+          <line x1="100" y1="20" x2="100" y2="260" stroke="currentColor" stroke-width="0.4" opacity="0.04"/>
+          <line x1="180" y1="20" x2="180" y2="260" stroke="currentColor" stroke-width="0.4" opacity="0.04"/>
+          <line x1="260" y1="20" x2="260" y2="260" stroke="currentColor" stroke-width="0.4" opacity="0.04"/>
 
-          <!-- 唯一连续主路径：S 型曲线，起点左下 → 终点右上 -->
+          <!-- 建筑群剪影 -->
+          <rect x="46" y="150" width="22" height="70" rx="3" fill="currentColor" opacity="0.12"/>
+          <rect x="74" y="170" width="18" height="50" rx="3" fill="currentColor" opacity="0.09"/>
+          <rect x="98" y="130" width="26" height="90" rx="3" fill="currentColor" opacity="0.14"/>
+          <rect x="130" y="160" width="20" height="60" rx="3" fill="currentColor" opacity="0.10"/>
+          <rect x="156" y="140" width="24" height="80" rx="3" fill="currentColor" opacity="0.12"/>
+          <rect x="210" y="165" width="20" height="55" rx="3" fill="currentColor" opacity="0.09"/>
+          <rect x="236" y="145" width="22" height="75" rx="3" fill="currentColor" opacity="0.11"/>
+          <rect x="264" y="155" width="20" height="65" rx="3" fill="currentColor" opacity="0.10"/>
+
+          <!-- 路线路径：S 型曲线 -->
           <path class="hero-route-path"
-            d="M 30 165 C 90 165, 100 85, 160 85 C 220 85, 230 145, 275 45"
-            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none" pathLength="100"/>
+            d="M 38 230 C 95 230, 105 170, 155 170 C 205 170, 215 110, 265 110 C 295 110, 310 90, 320 70"
+            stroke="currentColor" stroke-width="2.8" stroke-linecap="round" fill="none" pathLength="100"/>
 
           <!-- 移动光点 -->
-          <circle class="hero-travel-dot" cx="30" cy="165" r="4.5" fill="currentColor" opacity="0"/>
+          <circle class="hero-travel-dot" cx="38" cy="230" r="5" fill="currentColor" opacity="0"/>
 
-          <!-- 起点 -->
-          <circle class="hero-route-node hero-node-start" cx="30" cy="165" r="7" fill="currentColor" opacity="0"/>
-          <!-- 中间节点 -->
-          <circle class="hero-route-node hero-node-a" cx="100" cy="122" r="5" fill="currentColor" opacity="0"/>
-          <circle class="hero-route-node hero-node-b" cx="160" cy="85" r="5" fill="currentColor" opacity="0"/>
-          <circle class="hero-route-node hero-node-c" cx="220" cy="103" r="5" fill="currentColor" opacity="0"/>
-          <!-- 终点 -->
-          <circle class="hero-route-node hero-node-end" cx="275" cy="45" r="7" fill="currentColor" opacity="0"/>
+          <!-- 路线节点 -->
+          <circle class="hero-route-node hero-node-start" cx="38" cy="230" r="8" fill="currentColor" opacity="0"/>
+          <circle class="hero-route-node hero-node-a" cx="112" cy="195" r="5.5" fill="currentColor" opacity="0"/>
+          <circle class="hero-route-node hero-node-b" cx="155" cy="170" r="5.5" fill="currentColor" opacity="0"/>
+          <circle class="hero-route-node hero-node-c" cx="212" cy="130" r="5.5" fill="currentColor" opacity="0"/>
+          <circle class="hero-route-node hero-node-d" cx="265" cy="110" r="5.5" fill="currentColor" opacity="0"/>
+          <circle class="hero-route-node hero-node-end" cx="320" cy="70" r="8" fill="currentColor" opacity="0"/>
+
+          <!-- 地点标记点 -->
+          <circle cx="155" cy="170" r="3" fill="currentColor" opacity="0.15"/>
+          <circle cx="265" cy="110" r="3" fill="currentColor" opacity="0.15"/>
+          <circle cx="320" cy="70" r="3" fill="currentColor" opacity="0.20"/>
+          <circle cx="38" cy="230" r="3" fill="currentColor" opacity="0.20"/>
         </svg>
+      </div>
+      <!-- 向下滚动提示 -->
+      <div class="hero-scroll-hint" onclick="scrollToSection('inputSection')">
+        <span>向下探索</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </div>
     </section>
 
     <!-- 输入区 -->
     <section class="planner-section" id="inputSection">
-      <div class="section-label">通用路线需求</div>
-      <section class="common-route-config" id="commonRouteConfig">
-        <div class="bento-grid">
-
-          <!-- 主输入卡片 -->
-          <div class="bento-card bento-main">
-            <div class="prompt-header">
-              <span class="bento-emoji prompt-emoji">&#x1F31F;</span>
-              <div class="prompt-title">
-                <h3>今天想怎么玩？</h3>
-                <p class="prompt-subtitle">告诉AI你的出行想法，获得专属路线规划</p>
-              </div>
-            </div>
-
-            <div class="prompt-input-wrapper">
-              <textarea
-                id="user_input"
-                class="prompt-input"
-                placeholder="比如：周末想在杭州轻松逛逛，吃点本地特色，再找一家咖啡店坐坐，最好不排队..."
-                rows="3">周末想在杭州轻松逛逛，吃点本地特色</textarea>
-              <div class="input-glow"></div>
-            </div>
-
-            <div class="prompt-preferences">
-              <p class="preference-label">快捷偏好</p>
-              <div class="preference-chips">
-                <span class="chip active" data-value="本地风味">本地风味</span>
-                <span class="chip active" data-value="放松">放松</span>
-                <span class="chip" data-value="川菜">川菜</span>
-                <span class="chip" data-value="杭帮菜">杭帮菜</span>
-                <span class="chip" data-value="咖啡">咖啡</span>
-                <span class="chip" data-value="书店">书店</span>
-                <span class="chip" data-value="景点">景点</span>
-                <span class="chip" data-value="citywalk">citywalk</span>
-              </div>
-            </div>
-
-            <div class="tag-controls">
-              <div class="tag-control">
-                <p class="preference-label">同行画像</p>
-                <div class="tag-chip-group" id="personaTagChips">
-                  <span class="chip" data-value="parent_child_family">亲子家庭</span>
-                  <span class="chip" data-value="elder_family">带父母</span>
-                  <span class="chip" data-value="couple_date">情侣约会</span>
-                  <span class="chip" data-value="friends_group">朋友出游</span>
-                  <span class="chip active" data-value="solo_citywalk">单人 Citywalk</span>
-                </div>
-              </div>
-
-              <div class="tag-control">
-                <p class="preference-label">体验偏好</p>
-                <div class="tag-chip-group" id="preferenceTagChips">
-                  <span class="chip" data-value="food">餐饮</span>
-                  <span class="chip active" data-value="photo">拍照</span>
-                  <span class="chip active" data-value="culture">文化</span>
-                  <span class="chip" data-value="nature">自然</span>
-                  <span class="chip" data-value="shopping">逛街</span>
-                  <span class="chip" data-value="night_view">夜景</span>
-                  <span class="chip active" data-value="niche">小众</span>
-                  <span class="chip" data-value="relaxed">放松</span>
-                </div>
-              </div>
-
-              <div class="tag-control">
-                <p class="preference-label">路线约束</p>
-                <div class="tag-chip-group" id="constraintTagChips">
-                  <span class="chip" data-value="less_walking">少走路</span>
-                  <span class="chip" data-value="low_budget">低预算</span>
-                  <span class="chip active" data-value="avoid_queue">避开排队</span>
-                  <span class="chip" data-value="indoor_first">室内优先</span>
-                  <span class="chip" data-value="half_day">半日</span>
-                  <span class="chip" data-value="end_before_night">天黑前结束</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="prompt-footer">
-              <button class="generate-btn" id="generateBtn" onclick="generateRoute()">
-                <span class="btn-text">生成路线</span>
-                <span class="btn-loading" style="display: none;">正在生成路线...</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 时间卡片 -->
-          <div class="bento-card bento-time">
-            <span class="bento-emoji">&#x23F1;</span>
-            <h3>游玩时长</h3>
-            <div class="chip-group" id="durationChips">
-              <span class="chip" data-value="120">2 小时</span>
-              <span class="chip active" data-value="240">4 小时</span>
-              <span class="chip" data-value="360">6 小时</span>
-              <span class="chip" data-value="480">8 小时</span>
-            </div>
-            <input id="duration_minutes" type="hidden" value="240">
-          </div>
-
-          <!-- 预算卡片 -->
-          <div class="bento-card bento-budget">
-            <span class="bento-emoji">&#x1F4B0;</span>
-            <h3>预算范围</h3>
-            <div class="chip-group" id="budgetChips">
-              <span class="chip" data-value="100">¥100</span>
-              <span class="chip" data-value="200">¥200</span>
-              <span class="chip active" data-value="300">¥300</span>
-              <span class="chip" data-value="500">¥500</span>
-              <span class="chip" data-value="800">¥800</span>
-            </div>
-            <input id="budget" type="hidden" value="300">
-          </div>
-
-          <!-- 排队卡片 -->
-          <div class="bento-card bento-wait">
-            <span class="bento-emoji">&#x23F3;</span>
-            <h3>排队接受度</h3>
-            <div class="chip-group" id="waitChips">
-              <span class="chip" data-value="0">尽量不排</span>
-              <span class="chip" data-value="15">最多 15 分钟</span>
-              <span class="chip active" data-value="30">最多 30 分钟</span>
-              <span class="chip" data-value="60">可以等</span>
-            </div>
-            <input id="max_wait" type="hidden" value="30">
-          </div>
-
-          <!-- 出行方式卡片 -->
-          <div class="bento-card bento-transport">
-            <span class="bento-emoji">&#x1F6B6;</span>
-            <h3>出行方式</h3>
-            <div class="chip-group" id="transportChips">
-              <span class="chip active" data-value="walk">步行</span>
-              <span class="chip" data-value="bike">骑行</span>
-              <span class="chip" data-value="drive">驾车</span>
-            </div>
-          </div>
-
-          <!-- 出发时间卡片 -->
-          <div class="bento-card bento-depart">
-            <span class="bento-emoji">&#x1F552;</span>
-            <h3>出发时间</h3>
-            <div class="chip-group" id="startTimeChips">
-              <span class="chip" data-value="08:30">08:30 早高峰</span>
-              <span class="chip active" data-value="10:00">10:00 上午</span>
-              <span class="chip" data-value="14:00">14:00 下午</span>
-              <span class="chip" data-value="18:00">18:00 晚高峰</span>
-            </div>
-          </div>
-
-          <!-- 全局玩法卡片 -->
-          <div class="bento-card global-play-card">
-            <span class="bento-emoji">&#x1F3C3;</span>
-            <h3>全局玩法</h3>
-            <div class="feature-mode-block">
-              <p class="preference-label">路线节奏</p>
-              <div class="chip-group" id="paceModeChips">
-                <span class="chip active" data-value="normal">标准节奏</span>
-                <span class="chip" data-value="intensive">特种兵模式</span>
-              </div>
-            </div>
-            <div class="feature-mode-block">
-              <p class="preference-label">时间弹性</p>
-              <div class="chip-group" id="timeFlexChips">
-                <span class="chip active" data-value="0">不加时</span>
-                <span class="chip" data-value="30">+30 分钟</span>
-                <span class="chip" data-value="60">+60 分钟</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- AI 能力卡片 -->
-          <div class="bento-card bento-features">
-            <span class="bento-emoji">&#x1F9E0;</span>
-            <h3>AI 路线引擎</h3>
-            <ul class="feature-list">
-              <li>综合预算、排队与偏好</li>
-              <li>生成三种可比较方案</li>
-              <li>点击查看动态路线地图</li>
-            </ul>
-          </div>
-
-          <!-- DIY 必去点 -->
-          <div class="bento-card bento-diy">
-            <div class="diy-poi-picker">
-              <div class="diy-poi-header">
-                <span class="bento-emoji">&#x2728;</span>
-                <div>
-                  <h3>我还想去这些地方</h3>
-                  <p>不满意？先加 1-3 个想去地点，再重新生成路线。</p>
-                </div>
-              </div>
-              <div class="diy-poi-controls">
-                <select id="mustVisitPoiSelect">
-                  <option value="">选择一个想去地点</option>
-                </select>
-                <button type="button" class="btn-add-poi" id="addPoiBtn">添加地点</button>
-              </div>
-              <div class="poi-chip-list" id="selectedPoiChips"></div>
-              <input id="must_visit_pois" type="hidden" value="">
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="plan-type-tabs" id="planTypeTabs">
+      <!-- 模式切换 - 最上方 -->
+      <div class="plan-type-tabs" id="planTypeTabs">
         <button class="plan-type-tab active" type="button" data-value="standard">普通路线</button>
-        <button class="plan-type-tab" type="button" data-value="friends">朋友集合</button>
         <button class="plan-type-tab" type="button" data-value="blindbox">路线盲盒</button>
-      </section>
+      </div>
+      <p class="mode-description" id="modeDescription">输入你的出行想法和条件，生成三条可比较的路线方案</p>
 
-      <section class="mode-specific-config" id="modeSpecificConfig">
-        <div class="mode-panel active" id="standardModePanel" data-mode-panel="standard">
-          <div class="bento-card mode-panel-card">
-            <span class="bento-emoji">&#x1F4CD;</span>
-            <h3>普通路线起点</h3>
-            <select id="startSelect" onchange="onStartChange()">
+      <!-- ===== 普通路线模式 ===== -->
+      <div class="mode-panel active" id="standardModePanel" data-mode-panel="standard">
+        <div class="bento-card bento-main">
+          <div class="prompt-header">
+            <div class="prompt-title">
+              <h3>今天想怎么玩？</h3>
+            </div>
+          </div>
+
+          <div class="prompt-input-wrapper">
+            <textarea
+              id="user_input"
+              class="prompt-input"
+              placeholder="比如：周末想在杭州轻松逛逛，吃点本地特色，再找一家咖啡店坐坐，最好不排队..."
+              rows="2">周末想在杭州轻松逛逛，吃点本地特色</textarea>
+            <div class="input-glow"></div>
+          </div>
+
+          <p class="engine-subtitle">综合预算、排队与偏好，生成三种可比较方案，点击卡片查看动态路线地图</p>
+
+          <div class="prompt-preferences">
+            <p class="preference-label">快捷偏好</p>
+            <div class="preference-chips">
+              <span class="chip active" data-value="本地风味">本地风味</span>
+              <span class="chip active" data-value="放松">放松</span>
+              <span class="chip" data-value="川菜">川菜</span>
+              <span class="chip" data-value="杭帮菜">杭帮菜</span>
+              <span class="chip" data-value="咖啡">咖啡</span>
+              <span class="chip" data-value="书店">书店</span>
+              <span class="chip" data-value="景点">景点</span>
+              <span class="chip" data-value="citywalk">citywalk</span>
+            </div>
+          </div>
+
+          <button type="button" class="try-random-link" id="tryRandomBtn">想不出来？试试随机</button>
+        </div>
+      </div>
+
+      <!-- TODO: friends mode disabled for MVP demo -->
+
+      <!-- ===== 路线盲盒模式 ===== -->
+      <div class="mode-panel" id="blindboxModePanel" data-mode-panel="blindbox">
+        <div class="bento-card blindbox-mode-card">
+          <h3>不想思考？</h3>
+          <p class="blindbox-mode-subtitle">选一个主题，系统会生成三条神秘路线。先不告诉你去哪，点击揭晓才有惊喜。</p>
+          <div class="feature-mode-block">
+            <p class="preference-label">盲盒主题</p>
+            <div class="segmented-control" id="blindBoxThemeChips">
+              <span class="seg-option active" data-value="citywalk">Citywalk</span>
+              <span class="seg-option" data-value="foodie">吃吃喝喝</span>
+              <span class="seg-option" data-value="culture">文化之旅</span>
+              <span class="seg-option" data-value="hidden_gem">小众探索</span>
+            </div>
+          </div>
+          <div class="feature-mode-block">
+            <p class="preference-label">从哪里出发</p>
+            <select id="blindBoxStartSelect" onchange="onBlindBoxStartChange()">
               <option value="120.1646,30.2552">湖滨银泰</option>
               <option value="120.1499,30.2617">西湖断桥</option>
               <option value="120.1630,30.2768">武林广场</option>
@@ -277,34 +166,16 @@
             </select>
           </div>
         </div>
+      </div>
 
-        <div class="mode-panel" id="friendsModePanel" data-mode-panel="friends">
-          <div class="bento-card mode-panel-card">
-            <span class="bento-emoji">&#x1F91D;</span>
-            <h3>朋友集合位置</h3>
-            <div class="friend-select-row">
-              <select id="friendLocationA" onchange="updateFriendCommutePreview()">
-                <option value="120.1630,30.2768">朋友 A：武林广场</option>
-                <option value="120.2120,30.2917">朋友 A：杭州东站</option>
-                <option value="120.1499,30.2617">朋友 A：西湖断桥</option>
-              </select>
-              <select id="friendLocationB" onchange="updateFriendCommutePreview()">
-                <option value="120.2105,30.2082">朋友 B：滨江宝龙城</option>
-                <option value="120.1428,30.3205">朋友 B：拱宸桥</option>
-                <option value="120.2099,30.2460">朋友 B：钱江新城</option>
-              </select>
-            </div>
-            <div class="friend-commute-preview" id="friendCommutePreview"></div>
-          </div>
-        </div>
-
-        <div class="mode-panel" id="blindboxModePanel" data-mode-panel="blindbox">
-          <div class="bento-card mode-panel-card">
-            <span class="bento-emoji">&#x1F381;</span>
-            <h3>路线盲盒</h3>
-            <div class="feature-mode-block">
-              <p class="preference-label">从哪里出发</p>
-              <select id="blindBoxStartSelect" onchange="onBlindBoxStartChange()">
+      <!-- 行程条件（标准 + 盲盒模式可见） -->
+      <div class="shared-section" id="conditionsSection">
+        <div class="bento-card bento-conditions">
+          <h3 class="conditions-title">行程条件</h3>
+          <div class="conditions-row">
+            <div class="condition-item" id="startLocationItem">
+              <span class="condition-label">出发地</span>
+              <select id="startSelect" onchange="onStartChange()">
                 <option value="120.1646,30.2552">湖滨银泰</option>
                 <option value="120.1499,30.2617">西湖断桥</option>
                 <option value="120.1630,30.2768">武林广场</option>
@@ -317,20 +188,137 @@
                 <option value="120.1244,30.2659">浙大玉泉校区</option>
               </select>
             </div>
-            <div class="feature-mode-block">
-              <p class="preference-label">盲盒主题</p>
-              <div class="chip-group" id="blindBoxThemeChips">
-                <span class="chip active" data-value="citywalk">Citywalk</span>
-                <span class="chip" data-value="foodie">吃吃喝喝</span>
-                <span class="chip" data-value="culture">文化之旅</span>
-                <span class="chip" data-value="hidden_gem">小众探索</span>
+
+            <div class="condition-item">
+              <span class="condition-label">时长</span>
+              <div class="segmented-control" id="durationChips">
+                <span class="seg-option" data-value="120">2h</span>
+                <span class="seg-option active" data-value="240">4h</span>
+                <span class="seg-option" data-value="360">6h</span>
+                <span class="seg-option" data-value="480">8h</span>
+              </div>
+              <input id="duration_minutes" type="hidden" value="240">
+            </div>
+
+            <div class="condition-item">
+              <span class="condition-label">预算</span>
+              <div class="segmented-control" id="budgetChips">
+                <span class="seg-option" data-value="100">¥100</span>
+                <span class="seg-option" data-value="200">¥200</span>
+                <span class="seg-option active" data-value="300">¥300</span>
+                <span class="seg-option" data-value="500">¥500</span>
+                <span class="seg-option" data-value="800">¥800</span>
+              </div>
+              <input id="budget" type="hidden" value="300">
+            </div>
+
+            <div class="condition-item">
+              <span class="condition-label">排队</span>
+              <div class="segmented-control" id="waitChips">
+                <span class="seg-option" data-value="0">不排</span>
+                <span class="seg-option" data-value="15">≤15m</span>
+                <span class="seg-option active" data-value="30">≤30m</span>
+                <span class="seg-option" data-value="60">可等</span>
+              </div>
+              <input id="max_wait" type="hidden" value="30">
+            </div>
+
+            <div class="condition-item">
+              <span class="condition-label">出行</span>
+              <div class="segmented-control" id="transportChips">
+                <span class="seg-option active" data-value="walk">步行</span>
+                <span class="seg-option" data-value="bike">骑行</span>
+                <span class="seg-option" data-value="drive">驾车</span>
               </div>
             </div>
-            <p class="mode-panel-hint">盲盒路线会复用上方通用预算、时长、偏好、特种兵模式和时间弹性。</p>
-            <button class="secondary-action-btn" id="blindBoxBtn" onclick="generateBlindBoxRoute()">生成盲盒路线</button>
+
+            <div class="condition-item">
+              <span class="condition-label">出发</span>
+              <div class="segmented-control" id="startTimeChips">
+                <span class="seg-option" data-value="08:30">08:30</span>
+                <span class="seg-option active" data-value="10:00">10:00</span>
+                <span class="seg-option" data-value="14:00">14:00</span>
+                <span class="seg-option" data-value="18:00">18:00</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="conditions-row conditions-row-secondary">
+            <div class="condition-item">
+              <span class="condition-label">节奏</span>
+              <div class="segmented-control" id="paceModeChips">
+                <span class="seg-option active" data-value="normal">标准</span>
+                <span class="seg-option" data-value="intensive">特种兵</span>
+              </div>
+            </div>
+            <div class="condition-item">
+              <span class="condition-label">弹性</span>
+              <div class="segmented-control" id="timeFlexChips">
+                <span class="seg-option active" data-value="0">不加时</span>
+                <span class="seg-option" data-value="30">+30m</span>
+                <span class="seg-option" data-value="60">+60m</span>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
+
+      <!-- 高级设置（标准模式可见） -->
+      <div class="shared-section" id="advancedSection">
+        <button type="button" class="advanced-toggle" id="advancedToggle" onclick="toggleAdvanced()">
+          高级设置 <span class="toggle-arrow">▾</span>
+        </button>
+
+        <div class="advanced-panel" id="advancedPanel">
+          <div class="tag-controls">
+            <div class="tag-control">
+              <p class="preference-label">同行画像</p>
+              <div class="tag-chip-group" id="personaTagChips">
+                <span class="chip" data-value="parent_child_family">亲子家庭</span>
+                <span class="chip" data-value="elder_family">带父母</span>
+                <span class="chip" data-value="couple_date">情侣约会</span>
+                <span class="chip" data-value="friends_group">朋友出游</span>
+                <span class="chip active" data-value="solo_citywalk">单人 Citywalk</span>
+              </div>
+            </div>
+
+            <div class="tag-control">
+              <p class="preference-label">体验偏好</p>
+              <div class="tag-chip-group" id="preferenceTagChips">
+                <span class="chip" data-value="food">餐饮</span>
+                <span class="chip active" data-value="photo">拍照</span>
+                <span class="chip active" data-value="culture">文化</span>
+                <span class="chip" data-value="nature">自然</span>
+                <span class="chip" data-value="shopping">逛街</span>
+                <span class="chip" data-value="night_view">夜景</span>
+                <span class="chip active" data-value="niche">小众</span>
+                <span class="chip" data-value="relaxed">放松</span>
+              </div>
+            </div>
+
+            <div class="tag-control">
+              <p class="preference-label">路线约束</p>
+              <div class="tag-chip-group" id="constraintTagChips">
+                <span class="chip" data-value="less_walking">少走路</span>
+                <span class="chip" data-value="low_budget">低预算</span>
+                <span class="chip active" data-value="avoid_queue">避开排队</span>
+                <span class="chip" data-value="indoor_first">室内优先</span>
+                <span class="chip" data-value="half_day">半日</span>
+                <span class="chip" data-value="end_before_night">天黑前结束</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 生成按钮 -->
+      <div class="prompt-footer">
+        <button class="generate-btn" id="generateBtn" onclick="generateRoute()">
+          <span class="btn-text">生成路线</span>
+          <span class="btn-loading" style="display: none;">正在生成路线...</span>
+        </button>
+      </div>
+
       <input id="start" type="hidden" value="120.1646,30.2552">
 
       <!-- 隐藏高级字段 -->
@@ -356,7 +344,6 @@
       <div class="section-label">路线方案</div>
       <h2 class="results-heading">为你生成三种方案</h2>
       <div id="assumptionsPanel"></div>
-      <div id="friendCenterBanner"></div>
       <div class="preference-insight-panel" id="preferenceInsightPanel" style="display: none;"></div>
       <div class="cards" id="results"></div>
     </section>
@@ -366,6 +353,31 @@
       <div class="section-label">盲盒路线</div>
       <h2 class="results-heading">选择一个神秘路线盲盒</h2>
       <div id="blindBoxResults"></div>
+    </section>
+
+    <!-- DIY 必去点：结果区下方的二次调整入口 -->
+    <section class="diy-section" id="diySection" style="display: none;">
+      <div class="bento-card diy-after-results">
+        <div class="diy-poi-picker">
+          <div class="diy-poi-header">
+            <div>
+              <h3>有特别想去的地方？</h3>
+              <p>加入 1-3 个你一定会去的地点，我们会据此重新规划路线。</p>
+            </div>
+          </div>
+          <div class="diy-poi-controls">
+            <select id="mustVisitPoiSelect">
+              <option value="">选择一个想去地点</option>
+            </select>
+            <button type="button" class="btn-add-poi" id="addPoiBtn">添加</button>
+          </div>
+          <div class="poi-chip-list" id="selectedPoiChips"></div>
+          <input id="must_visit_pois" type="hidden" value="">
+          <button class="generate-btn diy-regenerate-btn" id="diyRegenerateBtn" onclick="regenerateWithDiy()">
+            <span class="btn-text">重新生成路线</span>
+          </button>
+        </div>
+      </div>
     </section>
 
     <!-- 详情与地图区 -->
@@ -397,8 +409,15 @@
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
   <script>
+    function scrollToSection(id) {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     function scrollToInput() {
-      document.getElementById('inputSection').scrollIntoView({ behavior: 'smooth' });
+      scrollToSection('inputSection');
     }
     function onStartChange() {
       document.getElementById('start').value = document.getElementById('startSelect').value;

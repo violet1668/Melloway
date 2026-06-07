@@ -9,7 +9,8 @@ const API_CONFIG = {
 const OPTION_NAMES = {
   demand_satisfaction: "体验优先方案",
   hard_constraint: "精打细算方案",
-  preference_insight: "个性化方案"
+  preference_insight: "个性化方案",
+  blindbox: "神秘盲盒路线"
 };
 
 const PLAN_DIFF_LABELS = {
@@ -21,7 +22,8 @@ const PLAN_DIFF_LABELS = {
 const PLAN_EXPLANATION_FALLBACK = {
   demand_satisfaction: "优先满足你本次输入的偏好和想去体验。",
   hard_constraint: "更稳地控制预算、时间和排队成本。",
-  preference_insight: "结合历史偏好与小众线索补充推荐。"
+  preference_insight: "结合历史偏好与小众线索补充推荐。",
+  blindbox: "根据你选择的方向和历史偏好，系统为你抽了一条惊喜路线。"
 };
 
 function normalizePlanType(option) {
