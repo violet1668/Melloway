@@ -493,53 +493,6 @@ function renderRouteSegments(segments) {
   `;
 }
 
-function parseCoordinateValue(value, fallbackName) {
-  const [lng, lat] = String(value || '').split(',').map(Number);
-  return {
-    name: fallbackName,
-    lng,
-    lat
-  };
-}
-
-function getSelectedOptionText(selectId) {
-  const select = document.getElementById(selectId);
-  if (!select || !select.selectedOptions.length) return '';
-  return select.selectedOptions[0].textContent.split('：').pop().trim();
-}
-
-function collectFriendLocations() {
-  return [
-    parseCoordinateValue(
-      document.getElementById('friendLocationA')?.value,
-      getSelectedOptionText('friendLocationA') || '朋友 A'
-    ),
-    parseCoordinateValue(
-      document.getElementById('friendLocationB')?.value,
-      getSelectedOptionText('friendLocationB') || '朋友 B'
-    )
-  ];
-}
-
-function updateFriendCommutePreview() {
-  const preview = document.getElementById('friendCommutePreview');
-  if (!preview) return;
-
-  const friends = collectFriendLocations();
-  preview.innerHTML = `
-    <div class="commute-preview-track">
-      <span class="commute-dot dot-a"></span>
-      <span class="commute-center-dot"></span>
-      <span class="commute-dot dot-b"></span>
-    </div>
-    <div class="commute-preview-labels">
-      <span>${friends[0].name}</span>
-      <strong>推荐集合点</strong>
-      <span>${friends[1].name}</span>
-    </div>
-  `;
-}
-
 function renderAssumptionsPanel(preferenceInsight) {
   const container = document.getElementById('assumptionsPanel');
   if (!container) return;
@@ -558,22 +511,7 @@ function renderAssumptionsPanel(preferenceInsight) {
   `;
 }
 
-function renderFriendCenterBanner(data) {
-  const container = document.getElementById('friendCenterBanner');
-  if (!container) return;
-
-  if (!data || !data.friends_center) {
-    container.innerHTML = '';
-    return;
-  }
-
-  container.innerHTML = `
-    <div class="friend-center-banner">
-      <strong>推荐集合点</strong>
-      <span>${data.friends_center.name || '推荐集合点'}，已综合 ${data.friends_center.source_count || 0} 位朋友的位置。</span>
-    </div>
-  `;
-}
+// TODO: friends mode disabled for MVP demo
 
 function renderBlindBoxResults(data) {
   const section = document.getElementById('blindBoxSection');
@@ -596,7 +534,8 @@ function renderBlindBoxResults(data) {
         <div class="blindbox-card" id="blindbox-${index}">
           <span class="blindbox-mystery-icon">&#x1F381;</span>
           <span class="blindbox-mystery-label">神秘路线 ${index + 1}</span>
-          <span class="blindbox-mystery-hint">点击揭晓</span>
+          <span class="blindbox-mystery-hint">点击展开</span>
+          <span class="blindbox-toggle-arrow">&#x25BE;</span>
           <div class="blindbox-reveal-content">
             <span class="blindbox-reveal-title"></span>
             <span class="blindbox-reveal-meta"></span>
@@ -610,19 +549,19 @@ function renderBlindBoxResults(data) {
   window.latestBlindBoxes.forEach((box, index) => {
     const card = document.getElementById(`blindbox-${index}`);
     if (card) {
-      card.addEventListener('click', () => revealBlindBox(index));
+      card.addEventListener('click', () => toggleBlindBox(index));
     }
   });
   section.style.display = 'block';
   setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 }
 
-function revealBlindBox(index) {
+function toggleBlindBox(index) {
   const box = window.latestBlindBoxes && window.latestBlindBoxes[index];
   if (!box || !box.option) return;
 
   const card = document.getElementById(`blindbox-${index}`);
-  if (!card || card.classList.contains('revealed')) return;
+  if (!card) return;
 
   const route = box.option.route;
   const poiCount = route?.pois?.length || 0;
@@ -632,10 +571,14 @@ function revealBlindBox(index) {
   const titleEl = card.querySelector('.blindbox-reveal-title');
   const metaEl = card.querySelector('.blindbox-reveal-meta');
 
-  if (titleEl) titleEl.textContent = box.display_name || box.option.summary || '神秘路线';
-  if (metaEl) metaEl.textContent = `${poiCount} 个地点 · 约 ${totalTime} 分钟 · 约 ¥${totalCost}`;
+  if (titleEl && !titleEl.textContent) {
+    titleEl.textContent = box.display_name || box.option.summary || '神秘路线';
+  }
+  if (metaEl && !metaEl.textContent) {
+    metaEl.textContent = `${poiCount} 个地点 · 约 ${totalTime} 分钟 · 约 ¥${totalCost}`;
+  }
 
-  card.classList.add('revealed');
+  card.classList.toggle('revealed');
 
   window.latestOptions = window.latestBlindBoxOptions || [box.option];
 }
@@ -667,14 +610,10 @@ function switchToMode(mode) {
   });
 
   // 共享区域
-  const conditionsSection = document.getElementById('conditionsSection');
   const advancedSection = document.getElementById('advancedSection');
   const startLocationItem = document.getElementById('startLocationItem');
   const tryRandomBtn = document.getElementById('tryRandomBtn');
 
-  if (conditionsSection) {
-    conditionsSection.style.display = (mode === 'friends') ? 'none' : '';
-  }
   if (advancedSection) {
     advancedSection.style.display = (mode === 'standard') ? '' : 'none';
   }
@@ -688,7 +627,6 @@ function switchToMode(mode) {
   // 模式描述
   const descriptions = {
     standard: '输入你的出行想法和条件，生成三条可比较的路线方案',
-    friends: '输入多个朋友的出发位置，寻找更公平的集合区域并生成路线',
     blindbox: '不想做决定时，根据历史数据与偏好随机生成带惊喜感的神秘路线'
   };
   if (modeDescription) {
@@ -698,7 +636,6 @@ function switchToMode(mode) {
   // 生成按钮文案
   const buttonLabels = {
     standard: '生成路线',
-    friends: '生成朋友集合路线',
     blindbox: '抽一条路线'
   };
   if (generateBtnText) {
@@ -711,9 +648,6 @@ function switchToMode(mode) {
   }
   if (mode === 'blindbox' && document.getElementById('blindBoxStartSelect')) {
     document.getElementById('start').value = document.getElementById('blindBoxStartSelect').value;
-  }
-  if (mode === 'friends') {
-    updateFriendCommutePreview();
   }
 }
 
@@ -1052,7 +986,6 @@ function displayResults(data) {
   mergePoiOptions(collectResultPois(data.options));
   status.textContent = data.message;
   renderAssumptionsPanel(data.preference_insight);
-  renderFriendCenterBanner(data);
   results.innerHTML = data.options.map(renderOption).join("");
 
   const preferenceInsightHtml = renderPreferenceInsight(data.preference_insight);
@@ -1126,11 +1059,7 @@ function collectFormPayload() {
   payload.preferences.pace_mode = document.getElementById("pace_mode").value || "normal";
   payload.preferences.time_flex_minutes = Number(document.getElementById("time_flex_minutes").value) || 0;
 
-  const routeMode = document.getElementById("route_mode").value || "standard";
-  if (routeMode === "friends") {
-    payload.mode = "friends";
-    payload.friends_locations = collectFriendLocations();
-  }
+  // TODO: friends mode disabled for MVP demo
 
   return payload;
 }
@@ -1406,7 +1335,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   setupPaceModeControls();
   setupPlanTypeTabs();
-  updateFriendCommutePreview();
   mergePoiOptions(POI_OPTIONS);
   renderSelectedPoiChips();
 
@@ -1428,8 +1356,7 @@ window.toggleAdvanced = toggleAdvanced;
 window.generateRoute = generateRoute;
 window.generateBlindBoxRoute = generateBlindBoxRoute;
 window.viewBlindBoxRoute = viewBlindBoxRoute;
-window.revealBlindBox = revealBlindBox;
-window.updateFriendCommutePreview = updateFriendCommutePreview;
+window.toggleBlindBox = toggleBlindBox;
 window.showFullRoute = showFullRoute;
 window.closeDetail = closeDetail;
 window.removeMustVisitPoi = removeMustVisitPoi;

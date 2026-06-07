@@ -92,7 +92,6 @@
       <!-- 模式切换 - 最上方 -->
       <div class="plan-type-tabs" id="planTypeTabs">
         <button class="plan-type-tab active" type="button" data-value="standard">普通路线</button>
-        <button class="plan-type-tab" type="button" data-value="friends">朋友集合</button>
         <button class="plan-type-tab" type="button" data-value="blindbox">路线盲盒</button>
       </div>
       <p class="mode-description" id="modeDescription">输入你的出行想法和条件，生成三条可比较的路线方案</p>
@@ -111,7 +110,7 @@
               id="user_input"
               class="prompt-input"
               placeholder="比如：周末想在杭州轻松逛逛，吃点本地特色，再找一家咖啡店坐坐，最好不排队..."
-              rows="3">周末想在杭州轻松逛逛，吃点本地特色</textarea>
+              rows="2">周末想在杭州轻松逛逛，吃点本地特色</textarea>
             <div class="input-glow"></div>
           </div>
 
@@ -135,25 +134,7 @@
         </div>
       </div>
 
-      <!-- ===== 朋友集合模式 ===== -->
-      <div class="mode-panel" id="friendsModePanel" data-mode-panel="friends">
-        <div class="bento-card mode-panel-card">
-          <h3>朋友们从哪里出发？</h3>
-          <div class="friend-select-row">
-            <select id="friendLocationA" onchange="updateFriendCommutePreview()">
-              <option value="120.1630,30.2768">朋友 A：武林广场</option>
-              <option value="120.2120,30.2917">朋友 A：杭州东站</option>
-              <option value="120.1499,30.2617">朋友 A：西湖断桥</option>
-            </select>
-            <select id="friendLocationB" onchange="updateFriendCommutePreview()">
-              <option value="120.2105,30.2082">朋友 B：滨江宝龙城</option>
-              <option value="120.1428,30.3205">朋友 B：拱宸桥</option>
-              <option value="120.2099,30.2460">朋友 B：钱江新城</option>
-            </select>
-          </div>
-          <div class="friend-commute-preview" id="friendCommutePreview"></div>
-        </div>
-      </div>
+      <!-- TODO: friends mode disabled for MVP demo -->
 
       <!-- ===== 路线盲盒模式 ===== -->
       <div class="mode-panel" id="blindboxModePanel" data-mode-panel="blindbox">
@@ -363,7 +344,6 @@
       <div class="section-label">路线方案</div>
       <h2 class="results-heading">为你生成三种方案</h2>
       <div id="assumptionsPanel"></div>
-      <div id="friendCenterBanner"></div>
       <div class="preference-insight-panel" id="preferenceInsightPanel" style="display: none;"></div>
       <div class="cards" id="results"></div>
     </section>
