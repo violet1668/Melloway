@@ -1,6 +1,7 @@
 // API 配置
 const API_CONFIG = {
   generateUrl: "/api/routes/generate",
+  blindBoxUrl: "/api/routes/blind-box",
   fallbackUrl: "/api/generate_route"
 };
 

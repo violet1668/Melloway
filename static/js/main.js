@@ -155,6 +155,185 @@ function renderRouteSegments(segments) {
   `;
 }
 
+function parseCoordinateValue(value, fallbackName) {
+  const [lng, lat] = String(value || '').split(',').map(Number);
+  return {
+    name: fallbackName,
+    lng,
+    lat
+  };
+}
+
+function getSelectedOptionText(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select || !select.selectedOptions.length) return '';
+  return select.selectedOptions[0].textContent.split('：').pop().trim();
+}
+
+function collectFriendLocations() {
+  return [
+    parseCoordinateValue(
+      document.getElementById('friendLocationA')?.value,
+      getSelectedOptionText('friendLocationA') || '朋友 A'
+    ),
+    parseCoordinateValue(
+      document.getElementById('friendLocationB')?.value,
+      getSelectedOptionText('friendLocationB') || '朋友 B'
+    )
+  ];
+}
+
+function updateFriendCommutePreview() {
+  const preview = document.getElementById('friendCommutePreview');
+  if (!preview) return;
+
+  const friends = collectFriendLocations();
+  preview.innerHTML = `
+    <div class="commute-preview-track">
+      <span class="commute-dot dot-a"></span>
+      <span class="commute-center-dot"></span>
+      <span class="commute-dot dot-b"></span>
+    </div>
+    <div class="commute-preview-labels">
+      <span>${friends[0].name}</span>
+      <strong>推荐集合点</strong>
+      <span>${friends[1].name}</span>
+    </div>
+  `;
+}
+
+function renderAssumptionsPanel(preferenceInsight) {
+  const container = document.getElementById('assumptionsPanel');
+  if (!container) return;
+
+  const assumptions = preferenceInsight && preferenceInsight.assumptions;
+  if (!assumptions || !assumptions.has_missing_constraints) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="assumptions-panel">
+      <strong>默认假设</strong>
+      <span>${assumptions.message}</span>
+    </div>
+  `;
+}
+
+function renderFriendCenterBanner(data) {
+  const container = document.getElementById('friendCenterBanner');
+  if (!container) return;
+
+  if (!data || !data.friends_center) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="friend-center-banner">
+      <strong>推荐集合点</strong>
+      <span>${data.friends_center.name || '推荐集合点'}，已综合 ${data.friends_center.source_count || 0} 位朋友的位置。</span>
+    </div>
+  `;
+}
+
+function renderBlindBoxResults(data) {
+  const section = document.getElementById('blindBoxSection');
+  const container = document.getElementById('blindBoxResults');
+  if (!section || !container) return;
+
+  if (!data.success) {
+    section.style.display = 'block';
+    container.innerHTML = `<div class="blindbox-message">${data.message || '盲盒路线生成失败'}</div>`;
+    return;
+  }
+
+  window.latestBlindBoxes = data.blind_boxes || [];
+  window.latestBlindBoxOptions = window.latestBlindBoxes.map(box => box.option);
+
+  container.innerHTML = `
+    <div class="blindbox-info">${data.blind_box_info?.message || data.message || ''}</div>
+    <div class="blindbox-grid">
+      ${window.latestBlindBoxes.map((box, index) => `
+        <button class="blindbox-card" type="button" onclick="revealBlindBox(${index})" id="blindbox-${index}">
+          <span class="blindbox-title">${box.display_name || '神秘路线盲盒'}</span>
+          <span class="blindbox-theme">${data.theme_name || '主题路线'}</span>
+          <span class="blindbox-action">点击揭晓</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+  section.style.display = 'block';
+  setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+function revealBlindBox(index) {
+  const box = window.latestBlindBoxes && window.latestBlindBoxes[index];
+  if (!box || !box.option) return;
+
+  const card = document.getElementById(`blindbox-${index}`);
+  if (card) {
+    card.classList.add('revealed');
+    card.innerHTML = `
+      <span class="blindbox-title">路线已揭晓</span>
+      <span class="blindbox-summary">${box.option.summary || box.option.message || '盲盒路线'}</span>
+      <span class="blindbox-action">查看完整路线</span>
+    `;
+  }
+
+  window.latestOptions = window.latestBlindBoxOptions || [box.option];
+  showFullRoute(index);
+}
+
+function setupPlanTypeTabs() {
+  const tabs = document.querySelectorAll('.plan-type-tab');
+  const modeInput = document.getElementById('route_mode');
+  const generateBtnText = document.querySelector('#generateBtn .btn-text');
+
+  const activateMode = (mode) => {
+    if (modeInput) modeInput.value = mode;
+    tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.value === mode));
+    document.querySelectorAll('[data-mode-panel]').forEach(panel => {
+      panel.classList.toggle('active', panel.dataset.modePanel === mode);
+    });
+
+    if (generateBtnText) {
+      generateBtnText.textContent = mode === 'blindbox' ? '生成盲盒路线' : '生成路线';
+    }
+
+    if (mode === 'standard' && document.getElementById('startSelect')) {
+      document.getElementById('start').value = document.getElementById('startSelect').value;
+    }
+    if (mode === 'blindbox' && document.getElementById('blindBoxStartSelect')) {
+      document.getElementById('start').value = document.getElementById('blindBoxStartSelect').value;
+    }
+    if (mode === 'friends') {
+      updateFriendCommutePreview();
+    }
+  };
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => activateMode(tab.dataset.value));
+  });
+
+  activateMode(modeInput?.value || 'standard');
+}
+
+function setupPaceModeControls() {
+  initChipGroup(
+    document.getElementById('paceModeChips'),
+    document.getElementById('pace_mode')
+  );
+  initChipGroup(
+    document.getElementById('timeFlexChips'),
+    document.getElementById('time_flex_minutes')
+  );
+  initChipGroup(
+    document.getElementById('blindBoxThemeChips'),
+    document.getElementById('blind_box_theme')
+  );
+}
+
 // ========== SVG 路线预览生成 ==========
 
 function generateMiniRouteSVG(planType, pois) {
@@ -419,6 +598,8 @@ function displayResults(data) {
 
   window.latestOptions = data.options;
   status.textContent = data.message;
+  renderAssumptionsPanel(data.preference_insight);
+  renderFriendCenterBanner(data);
   results.innerHTML = data.options.map(renderOption).join("");
   resultsSection.style.display = "block";
 
@@ -456,6 +637,15 @@ function collectFormPayload() {
     payload.preferences.poi_count = Number(poiCount);
   }
 
+  payload.preferences.pace_mode = document.getElementById("pace_mode").value || "normal";
+  payload.preferences.time_flex_minutes = Number(document.getElementById("time_flex_minutes").value) || 0;
+
+  const routeMode = document.getElementById("route_mode").value || "standard";
+  if (routeMode === "friends") {
+    payload.mode = "friends";
+    payload.friends_locations = collectFriendLocations();
+  }
+
   return payload;
 }
 
@@ -478,6 +668,14 @@ async function generateRoute() {
   btn.disabled = true;
   btnText.style.display = "none";
   btnLoading.style.display = "inline";
+
+  if ((document.getElementById("route_mode").value || "standard") === "blindbox") {
+    await generateBlindBoxRoute();
+    btn.disabled = false;
+    btnText.style.display = "inline";
+    btnLoading.style.display = "none";
+    return;
+  }
 
   const payload = collectFormPayload();
 
@@ -502,6 +700,48 @@ async function generateRoute() {
     btn.disabled = false;
     btnText.style.display = "inline";
     btnLoading.style.display = "none";
+  }
+}
+
+async function generateBlindBoxRoute() {
+  const status = document.getElementById("status");
+  const section = document.getElementById("blindBoxSection");
+  const container = document.getElementById("blindBoxResults");
+  const resultsSection = document.getElementById("resultsSection");
+  const detailSection = document.getElementById("detailSection");
+  const btn = document.getElementById("blindBoxBtn");
+
+  if (section) section.style.display = "none";
+  if (container) container.innerHTML = "";
+  if (resultsSection) resultsSection.style.display = "none";
+  if (detailSection) detailSection.style.display = "none";
+  status.textContent = "";
+  if (btn) btn.disabled = true;
+
+  const payload = collectFormPayload();
+  payload.preferences.theme = document.getElementById("blind_box_theme").value || "citywalk";
+  payload.preferences.start = payload.start;
+
+  try {
+    const response = await fetch(API_CONFIG.blindBoxUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      status.textContent = data.message || "盲盒路线生成失败";
+      renderBlindBoxResults(data);
+      return;
+    }
+
+    status.textContent = data.message || "盲盒路线生成成功";
+    renderBlindBoxResults(data);
+  } catch (error) {
+    status.textContent = "请求失败：" + error.message;
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -553,9 +793,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('constraintTagChips'),
     document.getElementById('constraint_tags')
   );
+
+  setupPaceModeControls();
+  setupPlanTypeTabs();
+  updateFriendCommutePreview();
 });
 
 // 暴露到 window
 window.generateRoute = generateRoute;
+window.generateBlindBoxRoute = generateBlindBoxRoute;
+window.revealBlindBox = revealBlindBox;
+window.updateFriendCommutePreview = updateFriendCommutePreview;
 window.showFullRoute = showFullRoute;
 window.closeDetail = closeDetail;

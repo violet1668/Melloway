@@ -48,184 +48,258 @@
       </div>
     </section>
 
-    <!-- 输入区 — Bento Grid -->
+    <!-- 输入区 -->
     <section class="planner-section" id="inputSection">
-      <div class="section-label">规划路线</div>
-      <div class="bento-grid">
+      <div class="section-label">通用路线需求</div>
+      <section class="common-route-config" id="commonRouteConfig">
+        <div class="bento-grid">
 
-        <!-- 主输入卡片 -->
-        <div class="bento-card bento-main">
-          <div class="prompt-header">
-            <span class="bento-emoji prompt-emoji">&#x1F31F;</span>
-            <div class="prompt-title">
-              <h3>今天想怎么玩？</h3>
-              <p class="prompt-subtitle">告诉AI你的出行想法，获得专属路线规划</p>
-            </div>
-          </div>
-
-          <div class="prompt-input-wrapper">
-            <textarea
-              id="user_input"
-              class="prompt-input"
-              placeholder="比如：周末想在杭州轻松逛逛，吃点本地特色，再找一家咖啡店坐坐，最好不排队..."
-              rows="3">周末想在杭州轻松逛逛，吃点本地特色</textarea>
-            <div class="input-glow"></div>
-          </div>
-
-          <div class="prompt-preferences">
-            <p class="preference-label">快捷偏好</p>
-            <div class="preference-chips">
-              <span class="chip active" data-value="本地风味">本地风味</span>
-              <span class="chip active" data-value="放松">放松</span>
-              <span class="chip" data-value="川菜">川菜</span>
-              <span class="chip" data-value="杭帮菜">杭帮菜</span>
-              <span class="chip" data-value="咖啡">咖啡</span>
-              <span class="chip" data-value="书店">书店</span>
-              <span class="chip" data-value="景点">景点</span>
-              <span class="chip" data-value="citywalk">citywalk</span>
-            </div>
-          </div>
-
-          <div class="tag-controls">
-            <div class="tag-control">
-              <p class="preference-label">同行画像</p>
-              <div class="tag-chip-group" id="personaTagChips">
-                <span class="chip" data-value="parent_child_family">亲子家庭</span>
-                <span class="chip" data-value="elder_family">带父母</span>
-                <span class="chip" data-value="couple_date">情侣约会</span>
-                <span class="chip" data-value="friends_group">朋友出游</span>
-                <span class="chip active" data-value="solo_citywalk">单人 Citywalk</span>
+          <!-- 主输入卡片 -->
+          <div class="bento-card bento-main">
+            <div class="prompt-header">
+              <span class="bento-emoji prompt-emoji">&#x1F31F;</span>
+              <div class="prompt-title">
+                <h3>今天想怎么玩？</h3>
+                <p class="prompt-subtitle">告诉AI你的出行想法，获得专属路线规划</p>
               </div>
             </div>
 
-            <div class="tag-control">
-              <p class="preference-label">体验偏好</p>
-              <div class="tag-chip-group" id="preferenceTagChips">
-                <span class="chip" data-value="food">餐饮</span>
-                <span class="chip active" data-value="photo">拍照</span>
-                <span class="chip active" data-value="culture">文化</span>
-                <span class="chip" data-value="nature">自然</span>
-                <span class="chip" data-value="shopping">逛街</span>
-                <span class="chip" data-value="night_view">夜景</span>
-                <span class="chip active" data-value="niche">小众</span>
-                <span class="chip" data-value="relaxed">放松</span>
+            <div class="prompt-input-wrapper">
+              <textarea
+                id="user_input"
+                class="prompt-input"
+                placeholder="比如：周末想在杭州轻松逛逛，吃点本地特色，再找一家咖啡店坐坐，最好不排队..."
+                rows="3">周末想在杭州轻松逛逛，吃点本地特色</textarea>
+              <div class="input-glow"></div>
+            </div>
+
+            <div class="prompt-preferences">
+              <p class="preference-label">快捷偏好</p>
+              <div class="preference-chips">
+                <span class="chip active" data-value="本地风味">本地风味</span>
+                <span class="chip active" data-value="放松">放松</span>
+                <span class="chip" data-value="川菜">川菜</span>
+                <span class="chip" data-value="杭帮菜">杭帮菜</span>
+                <span class="chip" data-value="咖啡">咖啡</span>
+                <span class="chip" data-value="书店">书店</span>
+                <span class="chip" data-value="景点">景点</span>
+                <span class="chip" data-value="citywalk">citywalk</span>
               </div>
             </div>
 
-            <div class="tag-control">
-              <p class="preference-label">路线约束</p>
-              <div class="tag-chip-group" id="constraintTagChips">
-                <span class="chip" data-value="less_walking">少走路</span>
-                <span class="chip" data-value="low_budget">低预算</span>
-                <span class="chip active" data-value="avoid_queue">避开排队</span>
-                <span class="chip" data-value="indoor_first">室内优先</span>
-                <span class="chip" data-value="half_day">半日</span>
-                <span class="chip" data-value="end_before_night">天黑前结束</span>
+            <div class="tag-controls">
+              <div class="tag-control">
+                <p class="preference-label">同行画像</p>
+                <div class="tag-chip-group" id="personaTagChips">
+                  <span class="chip" data-value="parent_child_family">亲子家庭</span>
+                  <span class="chip" data-value="elder_family">带父母</span>
+                  <span class="chip" data-value="couple_date">情侣约会</span>
+                  <span class="chip" data-value="friends_group">朋友出游</span>
+                  <span class="chip active" data-value="solo_citywalk">单人 Citywalk</span>
+                </div>
               </div>
+
+              <div class="tag-control">
+                <p class="preference-label">体验偏好</p>
+                <div class="tag-chip-group" id="preferenceTagChips">
+                  <span class="chip" data-value="food">餐饮</span>
+                  <span class="chip active" data-value="photo">拍照</span>
+                  <span class="chip active" data-value="culture">文化</span>
+                  <span class="chip" data-value="nature">自然</span>
+                  <span class="chip" data-value="shopping">逛街</span>
+                  <span class="chip" data-value="night_view">夜景</span>
+                  <span class="chip active" data-value="niche">小众</span>
+                  <span class="chip" data-value="relaxed">放松</span>
+                </div>
+              </div>
+
+              <div class="tag-control">
+                <p class="preference-label">路线约束</p>
+                <div class="tag-chip-group" id="constraintTagChips">
+                  <span class="chip" data-value="less_walking">少走路</span>
+                  <span class="chip" data-value="low_budget">低预算</span>
+                  <span class="chip active" data-value="avoid_queue">避开排队</span>
+                  <span class="chip" data-value="indoor_first">室内优先</span>
+                  <span class="chip" data-value="half_day">半日</span>
+                  <span class="chip" data-value="end_before_night">天黑前结束</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="prompt-footer">
+              <button class="generate-btn" id="generateBtn" onclick="generateRoute()">
+                <span class="btn-text">生成路线</span>
+                <span class="btn-loading" style="display: none;">正在生成路线...</span>
+              </button>
             </div>
           </div>
 
-          <div class="prompt-footer">
-            <button class="generate-btn" id="generateBtn" onclick="generateRoute()">
-              <span class="btn-text">生成我的路线</span>
-              <span class="btn-loading" style="display: none;">正在生成路线...</span>
-            </button>
+          <!-- 时间卡片 -->
+          <div class="bento-card bento-time">
+            <span class="bento-emoji">&#x23F1;</span>
+            <h3>游玩时长</h3>
+            <div class="chip-group" id="durationChips">
+              <span class="chip" data-value="120">2 小时</span>
+              <span class="chip active" data-value="240">4 小时</span>
+              <span class="chip" data-value="360">6 小时</span>
+              <span class="chip" data-value="480">8 小时</span>
+            </div>
+            <input id="duration_minutes" type="hidden" value="240">
+          </div>
+
+          <!-- 预算卡片 -->
+          <div class="bento-card bento-budget">
+            <span class="bento-emoji">&#x1F4B0;</span>
+            <h3>预算范围</h3>
+            <div class="chip-group" id="budgetChips">
+              <span class="chip" data-value="100">¥100</span>
+              <span class="chip" data-value="200">¥200</span>
+              <span class="chip active" data-value="300">¥300</span>
+              <span class="chip" data-value="500">¥500</span>
+              <span class="chip" data-value="800">¥800</span>
+            </div>
+            <input id="budget" type="hidden" value="300">
+          </div>
+
+          <!-- 排队卡片 -->
+          <div class="bento-card bento-wait">
+            <span class="bento-emoji">&#x23F3;</span>
+            <h3>排队接受度</h3>
+            <div class="chip-group" id="waitChips">
+              <span class="chip" data-value="0">尽量不排</span>
+              <span class="chip" data-value="15">最多 15 分钟</span>
+              <span class="chip active" data-value="30">最多 30 分钟</span>
+              <span class="chip" data-value="60">可以等</span>
+            </div>
+            <input id="max_wait" type="hidden" value="30">
+          </div>
+
+          <!-- 出行方式卡片 -->
+          <div class="bento-card bento-transport">
+            <span class="bento-emoji">&#x1F6B6;</span>
+            <h3>出行方式</h3>
+            <div class="chip-group" id="transportChips">
+              <span class="chip active" data-value="walk">步行</span>
+              <span class="chip" data-value="bike">骑行</span>
+              <span class="chip" data-value="drive">驾车</span>
+            </div>
+          </div>
+
+          <!-- 出发时间卡片 -->
+          <div class="bento-card bento-depart">
+            <span class="bento-emoji">&#x1F552;</span>
+            <h3>出发时间</h3>
+            <div class="chip-group" id="startTimeChips">
+              <span class="chip" data-value="08:30">08:30 早高峰</span>
+              <span class="chip active" data-value="10:00">10:00 上午</span>
+              <span class="chip" data-value="14:00">14:00 下午</span>
+              <span class="chip" data-value="18:00">18:00 晚高峰</span>
+            </div>
+          </div>
+
+          <!-- 全局玩法卡片 -->
+          <div class="bento-card global-play-card">
+            <span class="bento-emoji">&#x1F3C3;</span>
+            <h3>全局玩法</h3>
+            <div class="feature-mode-block">
+              <p class="preference-label">路线节奏</p>
+              <div class="chip-group" id="paceModeChips">
+                <span class="chip active" data-value="normal">标准节奏</span>
+                <span class="chip" data-value="intensive">特种兵模式</span>
+              </div>
+            </div>
+            <div class="feature-mode-block">
+              <p class="preference-label">时间弹性</p>
+              <div class="chip-group" id="timeFlexChips">
+                <span class="chip active" data-value="0">不加时</span>
+                <span class="chip" data-value="30">+30 分钟</span>
+                <span class="chip" data-value="60">+60 分钟</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="plan-type-tabs" id="planTypeTabs">
+        <button class="plan-type-tab active" type="button" data-value="standard">普通路线</button>
+        <button class="plan-type-tab" type="button" data-value="friends">朋友集合</button>
+        <button class="plan-type-tab" type="button" data-value="blindbox">路线盲盒</button>
+      </section>
+
+      <section class="mode-specific-config" id="modeSpecificConfig">
+        <div class="mode-panel active" id="standardModePanel" data-mode-panel="standard">
+          <div class="bento-card mode-panel-card">
+            <span class="bento-emoji">&#x1F4CD;</span>
+            <h3>普通路线起点</h3>
+            <select id="startSelect" onchange="onStartChange()">
+              <option value="120.1646,30.2552">湖滨银泰</option>
+              <option value="120.1499,30.2617">西湖断桥</option>
+              <option value="120.1630,30.2768">武林广场</option>
+              <option value="120.2120,30.2917">杭州东站</option>
+              <option value="120.1666,30.2586">龙翔桥</option>
+              <option value="120.0648,30.2702">西溪湿地</option>
+              <option value="120.2099,30.2460">钱江新城</option>
+              <option value="120.2105,30.2082">滨江宝龙城</option>
+              <option value="120.1428,30.3205">拱宸桥</option>
+              <option value="120.1244,30.2659">浙大玉泉校区</option>
+            </select>
           </div>
         </div>
 
-        <!-- 起点卡片 -->
-        <div class="bento-card bento-start">
-          <span class="bento-emoji">&#x1F4CD;</span>
-          <h3>从哪里出发？</h3>
-          <select id="startSelect" onchange="onStartChange()">
-            <option value="120.1646,30.2552">湖滨银泰</option>
-            <option value="120.1499,30.2617">西湖断桥</option>
-            <option value="120.1630,30.2768">武林广场</option>
-            <option value="120.2120,30.2917">杭州东站</option>
-            <option value="120.1666,30.2586">龙翔桥</option>
-            <option value="120.0648,30.2702">西溪湿地</option>
-            <option value="120.2099,30.2460">钱江新城</option>
-            <option value="120.2105,30.2082">滨江宝龙城</option>
-            <option value="120.1428,30.3205">拱宸桥</option>
-            <option value="120.1244,30.2659">浙大玉泉校区</option>
-          </select>
-          <input id="start" type="hidden" value="120.1646,30.2552">
-        </div>
-
-        <!-- 时间卡片 -->
-        <div class="bento-card bento-time">
-          <span class="bento-emoji">&#x23F1;</span>
-          <h3>游玩时长</h3>
-          <div class="chip-group" id="durationChips">
-            <span class="chip" data-value="120">2 小时</span>
-            <span class="chip active" data-value="240">4 小时</span>
-            <span class="chip" data-value="360">6 小时</span>
-            <span class="chip" data-value="480">8 小时</span>
-          </div>
-          <input id="duration_minutes" type="hidden" value="240">
-        </div>
-
-        <!-- 出发时间卡片 -->
-        <div class="bento-card bento-depart">
-          <span class="bento-emoji">&#x1F552;</span>
-          <h3>出发时间</h3>
-          <div class="chip-group" id="startTimeChips">
-            <span class="chip" data-value="08:30">08:30 早高峰</span>
-            <span class="chip active" data-value="10:00">10:00 上午</span>
-            <span class="chip" data-value="14:00">14:00 下午</span>
-            <span class="chip" data-value="18:00">18:00 晚高峰</span>
+        <div class="mode-panel" id="friendsModePanel" data-mode-panel="friends">
+          <div class="bento-card mode-panel-card">
+            <span class="bento-emoji">&#x1F91D;</span>
+            <h3>朋友集合位置</h3>
+            <div class="friend-select-row">
+              <select id="friendLocationA" onchange="updateFriendCommutePreview()">
+                <option value="120.1630,30.2768">朋友 A：武林广场</option>
+                <option value="120.2120,30.2917">朋友 A：杭州东站</option>
+                <option value="120.1499,30.2617">朋友 A：西湖断桥</option>
+              </select>
+              <select id="friendLocationB" onchange="updateFriendCommutePreview()">
+                <option value="120.2105,30.2082">朋友 B：滨江宝龙城</option>
+                <option value="120.1428,30.3205">朋友 B：拱宸桥</option>
+                <option value="120.2099,30.2460">朋友 B：钱江新城</option>
+              </select>
+            </div>
+            <div class="friend-commute-preview" id="friendCommutePreview"></div>
           </div>
         </div>
 
-        <!-- 出行方式卡片 -->
-        <div class="bento-card bento-transport">
-          <span class="bento-emoji">&#x1F6B6;</span>
-          <h3>出行方式</h3>
-          <div class="chip-group" id="transportChips">
-            <span class="chip active" data-value="walk">步行</span>
-            <span class="chip" data-value="bike">骑行</span>
-            <span class="chip" data-value="drive">驾车</span>
+        <div class="mode-panel" id="blindboxModePanel" data-mode-panel="blindbox">
+          <div class="bento-card mode-panel-card">
+            <span class="bento-emoji">&#x1F381;</span>
+            <h3>路线盲盒</h3>
+            <div class="feature-mode-block">
+              <p class="preference-label">从哪里出发</p>
+              <select id="blindBoxStartSelect" onchange="onBlindBoxStartChange()">
+                <option value="120.1646,30.2552">湖滨银泰</option>
+                <option value="120.1499,30.2617">西湖断桥</option>
+                <option value="120.1630,30.2768">武林广场</option>
+                <option value="120.2120,30.2917">杭州东站</option>
+                <option value="120.1666,30.2586">龙翔桥</option>
+                <option value="120.0648,30.2702">西溪湿地</option>
+                <option value="120.2099,30.2460">钱江新城</option>
+                <option value="120.2105,30.2082">滨江宝龙城</option>
+                <option value="120.1428,30.3205">拱宸桥</option>
+                <option value="120.1244,30.2659">浙大玉泉校区</option>
+              </select>
+            </div>
+            <div class="feature-mode-block">
+              <p class="preference-label">盲盒主题</p>
+              <div class="chip-group" id="blindBoxThemeChips">
+                <span class="chip active" data-value="citywalk">Citywalk</span>
+                <span class="chip" data-value="foodie">吃吃喝喝</span>
+                <span class="chip" data-value="culture">文化之旅</span>
+                <span class="chip" data-value="hidden_gem">小众探索</span>
+              </div>
+            </div>
+            <p class="mode-panel-hint">盲盒路线会复用上方通用预算、时长、偏好、特种兵模式和时间弹性。</p>
+            <button class="secondary-action-btn" id="blindBoxBtn" onclick="generateBlindBoxRoute()">生成盲盒路线</button>
           </div>
         </div>
-
-        <!-- 预算卡片 -->
-        <div class="bento-card bento-budget">
-          <span class="bento-emoji">&#x1F4B0;</span>
-          <h3>预算范围</h3>
-          <div class="chip-group" id="budgetChips">
-            <span class="chip" data-value="100">¥100</span>
-            <span class="chip" data-value="200">¥200</span>
-            <span class="chip active" data-value="300">¥300</span>
-            <span class="chip" data-value="500">¥500</span>
-            <span class="chip" data-value="800">¥800</span>
-          </div>
-          <input id="budget" type="hidden" value="300">
-        </div>
-
-        <!-- 排队卡片 -->
-        <div class="bento-card bento-wait">
-          <span class="bento-emoji">&#x23F3;</span>
-          <h3>排队接受度</h3>
-          <div class="chip-group" id="waitChips">
-            <span class="chip" data-value="0">尽量不排</span>
-            <span class="chip" data-value="15">最多 15 分钟</span>
-            <span class="chip active" data-value="30">最多 30 分钟</span>
-            <span class="chip" data-value="60">可以等</span>
-          </div>
-          <input id="max_wait" type="hidden" value="30">
-        </div>
-
-        <!-- AI 能力卡片 -->
-        <div class="bento-card bento-features">
-          <span class="bento-emoji">&#x1F9E0;</span>
-          <h3>AI 路线引擎</h3>
-          <ul class="feature-list">
-            <li>综合预算、排队与偏好</li>
-            <li>生成三种可比较方案</li>
-            <li>点击查看动态路线地图</li>
-          </ul>
-        </div>
-      </div>
+      </section>
+      <input id="start" type="hidden" value="120.1646,30.2552">
 
       <!-- 隐藏高级字段 -->
       <input id="food" type="hidden" value="杭帮菜">
@@ -237,6 +311,10 @@
       <input id="persona_tags" type="hidden" value="solo_citywalk">
       <input id="preference_tags" type="hidden" value="photo,culture,niche">
       <input id="constraint_tags" type="hidden" value="avoid_queue">
+      <input id="route_mode" type="hidden" value="standard">
+      <input id="pace_mode" type="hidden" value="normal">
+      <input id="time_flex_minutes" type="hidden" value="0">
+      <input id="blind_box_theme" type="hidden" value="citywalk">
 
       <p class="status" id="status"></p>
     </section>
@@ -245,7 +323,16 @@
     <section class="results-section" id="resultsSection" style="display: none;">
       <div class="section-label">路线方案</div>
       <h2 class="results-heading">为你生成三种方案</h2>
+      <div id="assumptionsPanel"></div>
+      <div id="friendCenterBanner"></div>
       <div class="cards" id="results"></div>
+    </section>
+
+    <!-- 盲盒结果区 -->
+    <section class="blindbox-section" id="blindBoxSection" style="display: none;">
+      <div class="section-label">盲盒路线</div>
+      <h2 class="results-heading">选择一个神秘路线盲盒</h2>
+      <div id="blindBoxResults"></div>
     </section>
 
     <!-- 详情与地图区 -->
@@ -282,6 +369,9 @@
     }
     function onStartChange() {
       document.getElementById('start').value = document.getElementById('startSelect').value;
+    }
+    function onBlindBoxStartChange() {
+      document.getElementById('start').value = document.getElementById('blindBoxStartSelect').value;
     }
   </script>
 </body>
