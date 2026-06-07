@@ -177,6 +177,7 @@ def filter_pois(pois, start_point, preferences, option_type):
     transport = preferences.get("transport", "walk")
 
     search_radius_km = infer_search_radius_km(duration_minutes, transport)
+    search_radius_km *= float(preferences.get("persona_search_radius_multiplier", 1.0) or 1.0)
     start_time = time_window[0]
 
     filtered = []

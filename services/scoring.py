@@ -1,4 +1,5 @@
 from services.constraints import haversine_km
+from services.persona import persona_score_adjustment
 
 
 def preference_match_score(poi, preferences):
@@ -106,6 +107,8 @@ def calculate_poi_score(poi, preferences, user_prefs=None, option_type="hard_con
 
     if option_type == "hard_constraint":
         score -= poi.get("price", 0) * 0.12
+
+    score += persona_score_adjustment(poi, preferences, option_type)
 
     return round(score, 2)
 

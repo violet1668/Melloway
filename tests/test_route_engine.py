@@ -498,5 +498,89 @@ class TestRouteEngine(unittest.TestCase):
             self.assertEqual(blind_box["display_name"], "神秘路线盲盒")
             self.assertEqual(blind_box["option"]["pace_info"]["pace_mode"], "intensive")
 
+    def test_persona_tags_are_normalized_from_top_level_and_return_context(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "user_input": "周末带孩子轻松玩半天，别排队太久",
+            "persona_tags": ["parent_child_family", "special_forces"],
+            "preference_tags": ["food", "nature", "relaxed"],
+            "constraint_tags": ["less_walking", "avoid_queue", "half_day"],
+            "budget": 300,
+            "transport": "walk"
+        })
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["persona_context"]["persona_tags"], ["parent_child_family"])
+        self.assertIn("special_forces", result["persona_context"]["ignored_tags"])
+        first_success = next(option for option in result["options"] if option["success"])
+        self.assertIn("matched_reasons", first_success)
+        self.assertIn("quality_scores", first_success)
+        self.assertIn("family_score", first_success["quality_scores"])
+        self.assertTrue(first_success["matched_reasons"])
+
+    def test_family_persona_scores_family_above_intensity(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "user_input": "亲子家庭轻松半日路线",
+            "preferences": {
+                "persona_tags": ["parent_child_family"],
+                "preference_tags": ["nature", "relaxed", "food"],
+                "constraint_tags": ["less_walking", "avoid_queue", "half_day"],
+                "budget": 320,
+                "duration_minutes": 240,
+                "max_wait": 20,
+                "transport": "walk"
+            }
+        })
+
+        self.assertTrue(result["success"])
+        first_success = next(option for option in result["options"] if option["success"])
+        scores = first_success["quality_scores"]
+        self.assertGreater(scores["family_score"], scores["intensity_score"])
+
+    def test_couple_date_persona_scores_romantic_high(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "user_input": "情侣约会，想拍照吃甜品",
+            "preferences": {
+                "persona_tags": ["couple_date"],
+                "preference_tags": ["photo", "night_view", "food"],
+                "constraint_tags": [],
+                "budget": 420,
+                "duration_minutes": 300,
+                "max_wait": 30,
+                "transport": "walk",
+                "time_window": ["14:00", "21:00"]
+            }
+        })
+
+        self.assertTrue(result["success"])
+        first_success = next(option for option in result["options"] if option["success"])
+        scores = first_success["quality_scores"]
+        self.assertGreaterEqual(scores["romantic_score"], scores["social_score"])
+
+    def test_intensive_pace_remains_independent_from_persona_tags(self):
+        result = generate_route_plan({
+            "start": "120.1646,30.2552",
+            "user_input": "一个人 citywalk，想多打卡几个点",
+            "preferences": {
+                "persona_tags": ["solo_citywalk"],
+                "preference_tags": ["culture", "photo", "niche"],
+                "constraint_tags": ["avoid_queue"],
+                "budget": 500,
+                "duration_minutes": 240,
+                "max_wait": 30,
+                "transport": "walk",
+                "pace_mode": "intensive",
+                "time_flex_minutes": 60
+            }
+        })
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["pace_info"]["pace_mode"], "intensive")
+        self.assertEqual(result["persona_context"]["persona_tags"], ["solo_citywalk"])
+        first_success = next(option for option in result["options"] if option["success"])
+        self.assertGreater(first_success["quality_scores"]["intensity_score"], 50)
+
 if __name__ == '__main__':
     unittest.main()

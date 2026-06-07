@@ -47,9 +47,83 @@ function initPreferenceChips() {
   });
 }
 
+function initMultiSelectChips(chipContainer, hiddenInput) {
+  if (!chipContainer || !hiddenInput) return;
+
+  const chips = chipContainer.querySelectorAll('.chip');
+
+  const syncValue = () => {
+    const values = Array.from(chips)
+      .filter(chip => chip.classList.contains('active'))
+      .map(chip => chip.dataset.value);
+    hiddenInput.value = values.join(',');
+  };
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chip.classList.toggle('active');
+      syncValue();
+    });
+  });
+
+  syncValue();
+}
+
 function splitInput(value) {
   if (!value) return [];
   return value.split(",").map(s => s.trim()).filter(s => s.length > 0);
+}
+
+function renderPersonaTags(personaContext) {
+  if (!personaContext) return '';
+  const labels = personaContext.persona_labels || [];
+  const constraintTags = personaContext.constraint_tags || [];
+  const tagLabelMap = {
+    less_walking: '少走路',
+    low_budget: '低预算',
+    avoid_queue: '避开排队',
+    indoor_first: '室内优先',
+    half_day: '半日',
+    end_before_night: '天黑前结束'
+  };
+  const tags = labels.concat(constraintTags.map(tag => tagLabelMap[tag] || tag)).slice(0, 4);
+  if (!tags.length) return '';
+  return `<div class="persona-tags">${tags.map(tag => `<span>${tag}</span>`).join('')}</div>`;
+}
+
+function renderQualityScores(scores, compact = true) {
+  if (!scores) return '';
+  const scoreItems = [
+    ['舒适', scores.comfort_score],
+    ['社交', scores.social_score],
+    ['浪漫', scores.romantic_score],
+    ['家庭', scores.family_score],
+    ['强度', scores.intensity_score]
+  ];
+  const displayItems = compact
+    ? scoreItems.sort((a, b) => (b[1] || 0) - (a[1] || 0)).slice(0, 3)
+    : scoreItems;
+
+  return `
+    <div class="${compact ? 'quality-mini' : 'quality-list'}">
+      ${displayItems.map(([label, value]) => `
+        <div class="quality-item">
+          <span class="quality-label">${label}</span>
+          <span class="quality-bar"><i style="width: ${Math.max(0, Math.min(100, value || 0))}%"></i></span>
+          <span class="quality-value">${value || 0}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderMatchedReasons(reasons, limit = 2) {
+  if (!reasons || !reasons.length) return '';
+  return `
+    <ul class="matched-reasons">
+      ${reasons.slice(0, limit).map(reason => `<li>${reason}</li>`).join('')}
+    </ul>
+  `;
 }
 
 // ========== SVG 路线预览生成 ==========
@@ -183,6 +257,9 @@ function renderOption(option, index) {
   const planName = optionName(option.type);
   const totalWait = route.total_wait_time || 0;
   const shortSummary = option.summary.length > 20 ? option.summary.slice(0, 20) + '…' : option.summary;
+  const personaContext = option.persona_context || route.persona_context;
+  const matchedReasons = option.matched_reasons || route.matched_reasons || [];
+  const qualityScores = option.quality_scores || route.quality_scores;
 
   const routeSvgHtml = generateMiniRouteSVG(option.type, route.pois);
 
@@ -192,7 +269,10 @@ function renderOption(option, index) {
         <!-- 正面 -->
         <div class="flip-card-front">
           <h3>${planName}</h3>
+          ${renderPersonaTags(personaContext)}
           <p class="summary">${option.summary}</p>
+          ${renderMatchedReasons(matchedReasons, 2)}
+          ${renderQualityScores(qualityScores, true)}
           <div class="meta">
             <span>${route.pois.length} 个地点</span>
             <span>约 ${route.total_time} 分钟</span>
@@ -207,6 +287,7 @@ function renderOption(option, index) {
           <!-- 1. 顶部信息头 -->
           <div class="back-header">
             <span class="back-badge">${planName}</span>
+            ${renderPersonaTags(personaContext)}
             <p class="back-summary">${shortSummary}</p>
             <div class="back-metrics">
               <span>${route.total_time} 分钟</span>
@@ -241,9 +322,17 @@ function showFullRoute(index, event) {
 
   const route = option.route;
   const detailSection = document.getElementById('detailSection');
+  const matchedReasons = option.matched_reasons || route.matched_reasons || [];
+  const qualityScores = option.quality_scores || route.quality_scores;
+  const personaContext = option.persona_context || route.persona_context;
 
   document.getElementById('detailTitle').textContent = optionName(option.type);
-  document.getElementById('detailSummary').textContent = option.summary || '';
+  document.getElementById('detailSummary').innerHTML = `
+    ${renderPersonaTags(personaContext)}
+    <p>${option.summary || ''}</p>
+    ${renderMatchedReasons(matchedReasons, 4)}
+    ${renderQualityScores(qualityScores, false)}
+  `;
 
   const metrics = [
     { label: '途经地点', value: route.pois.length },
@@ -317,7 +406,10 @@ function collectFormPayload() {
       ],
       max_wait: Number(document.getElementById("max_wait").value) || 30,
       duration_minutes: Number(document.getElementById("duration_minutes").value) || 240,
-      transport: document.getElementById("transport").value || "walk"
+      transport: document.getElementById("transport").value || "walk",
+      persona_tags: splitInput(document.getElementById("persona_tags").value),
+      preference_tags: splitInput(document.getElementById("preference_tags").value),
+      constraint_tags: splitInput(document.getElementById("constraint_tags").value)
     }
   };
 
@@ -398,6 +490,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 初始化偏好 chips
   initPreferenceChips();
+
+  initMultiSelectChips(
+    document.getElementById('personaTagChips'),
+    document.getElementById('persona_tags')
+  );
+
+  initMultiSelectChips(
+    document.getElementById('preferenceTagChips'),
+    document.getElementById('preference_tags')
+  );
+
+  initMultiSelectChips(
+    document.getElementById('constraintTagChips'),
+    document.getElementById('constraint_tags')
+  );
 });
 
 // 暴露到 window
