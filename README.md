@@ -125,7 +125,7 @@ python3 app.py
 | 后端 | Python · Flask |
 | 前端 | Vanilla JS · CSS 3D Transform · SVG 动画 |
 | 地图 | Leaflet · OpenStreetMap |
-| 数据 | 杭州 Mock POI（30+ 地点）· 模拟用户画像 · UGC 评论 |
+| 数据 | 杭州 Mock POI（50+ 地点）· 模拟用户画像 · UGC 评论 |
 | 部署 | Render |
 
 <br>
