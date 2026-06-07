@@ -86,6 +86,45 @@
             </div>
           </div>
 
+          <div class="tag-controls">
+            <div class="tag-control">
+              <p class="preference-label">同行画像</p>
+              <div class="tag-chip-group" id="personaTagChips">
+                <span class="chip" data-value="parent_child_family">亲子家庭</span>
+                <span class="chip" data-value="elder_family">带父母</span>
+                <span class="chip" data-value="couple_date">情侣约会</span>
+                <span class="chip" data-value="friends_group">朋友出游</span>
+                <span class="chip active" data-value="solo_citywalk">单人 Citywalk</span>
+              </div>
+            </div>
+
+            <div class="tag-control">
+              <p class="preference-label">体验偏好</p>
+              <div class="tag-chip-group" id="preferenceTagChips">
+                <span class="chip" data-value="food">餐饮</span>
+                <span class="chip active" data-value="photo">拍照</span>
+                <span class="chip active" data-value="culture">文化</span>
+                <span class="chip" data-value="nature">自然</span>
+                <span class="chip" data-value="shopping">逛街</span>
+                <span class="chip" data-value="night_view">夜景</span>
+                <span class="chip active" data-value="niche">小众</span>
+                <span class="chip" data-value="relaxed">放松</span>
+              </div>
+            </div>
+
+            <div class="tag-control">
+              <p class="preference-label">路线约束</p>
+              <div class="tag-chip-group" id="constraintTagChips">
+                <span class="chip" data-value="less_walking">少走路</span>
+                <span class="chip" data-value="low_budget">低预算</span>
+                <span class="chip active" data-value="avoid_queue">避开排队</span>
+                <span class="chip" data-value="indoor_first">室内优先</span>
+                <span class="chip" data-value="half_day">半日</span>
+                <span class="chip" data-value="end_before_night">天黑前结束</span>
+              </div>
+            </div>
+          </div>
+
           <div class="prompt-footer">
             <button class="generate-btn" id="generateBtn" onclick="generateRoute()">
               <span class="btn-text">生成我的路线</span>
@@ -172,6 +211,9 @@
       <input id="transport" type="hidden" value="walk">
       <input id="poi_count" type="hidden" value="">
       <input id="tags" type="hidden" value="本地风味,放松">
+      <input id="persona_tags" type="hidden" value="solo_citywalk">
+      <input id="preference_tags" type="hidden" value="photo,culture,niche">
+      <input id="constraint_tags" type="hidden" value="avoid_queue">
 
       <p class="status" id="status"></p>
     </section>

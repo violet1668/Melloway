@@ -33,6 +33,16 @@ from services.pace import (
     normalize_pace_preferences,
     pace_score_adjustment,
 )
+from services.persona import (
+    apply_persona_to_effective_preferences,
+    build_matched_reasons,
+    build_persona_context,
+    build_quality_scores,
+    get_persona_poi_count_delta,
+    get_persona_stay_duration_delta,
+    normalize_persona_tags,
+    persona_route_selection_adjustment,
+)
 
 
 OPTION_CONSTRAINT_POLICIES = {
@@ -151,6 +161,7 @@ def build_option_constraints(option_type, preferences):
     effective_preferences["max_wait"] = max_wait + wait_extra
     effective_preferences["duration_minutes"] = base_duration_minutes + duration_extra
     effective_preferences["base_duration_minutes"] = base_duration_minutes
+    effective_preferences = apply_persona_to_effective_preferences(effective_preferences)
 
     constraint_policy = {
         "mode": option_type,
@@ -391,6 +402,10 @@ def normalize_route_request(user_request):
         if field in user_request and field not in preferences:
             preferences[field] = user_request.get(field)
 
+    for field in ["persona_tags", "preference_tags", "constraint_tags"]:
+        if field in user_request and field not in preferences:
+            preferences[field] = user_request.get(field)
+
     preferences.setdefault("city", user_request.get("city", "杭州"))
     preferences.setdefault("transport", user_request.get("transport", "walk"))
     preferences.setdefault("time_window", user_request.get("time_window", ["10:00", "18:00"]))
@@ -407,6 +422,8 @@ def normalize_route_request(user_request):
     preferences["tags"] = unique_keep_order(
         list(preferences.get("tags", [])) + extracted_preferences["tags"]
     )
+
+    preferences = normalize_persona_tags(preferences)
 
     missing_fields = []
     defaults = {
@@ -505,6 +522,7 @@ def choose_next_poi_for_option(current_point, candidate_pois, option_type, prefe
             value = poi["engine_score"] - distance * 8
 
         value += pace_score_adjustment(poi, distance, preferences)
+        value += persona_route_selection_adjustment(poi, distance, preferences)
 
         if poi.get("id") in avoid_poi_ids:
             value -= 18
@@ -543,9 +561,11 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
 
     if not poi_count:
         poi_count = get_default_poi_count(get_base_duration_minutes(preferences))
+        poi_count += get_persona_poi_count_delta(preferences)
         poi_count += get_intensive_poi_count_bonus(preferences)
 
     poi_count = int(poi_count)
+    poi_count = max(1, poi_count)
     poi_count = max(poi_count, len(must_visit_pois))
 
     if user_specified_poi_count and len(candidate_pois) < poi_count and not must_visit_pois:
@@ -598,6 +618,7 @@ def build_route(start_point, candidate_pois, preferences, option_type, user_pref
 
         arrive_time = current_time + timedelta(minutes=travel_minutes)
         stay_duration = get_adjusted_stay_duration(next_poi, preferences)
+        stay_duration = max(15, stay_duration + get_persona_stay_duration_delta(next_poi, preferences))
 
         leave_time = arrive_time + timedelta(
             minutes=next_poi.get("wait_time", 0) + stay_duration
@@ -739,6 +760,7 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
     )
 
     if not route:
+        persona_context = build_persona_context(effective_preferences)
         requested_poi_count = preferences.get("poi_count")
         if requested_poi_count:
             fail_message = "当前条件下无法满足指定 POI 数量，请放宽预算、时间或排队限制，或减少 POI 数量。"
@@ -765,6 +787,9 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
             "relaxation_notice": build_relaxation_notice(None, relaxed_constraints),
             "differentiation_reason": "当前约束下没有足够 POI 形成该方案。",
             "pace_info": pace_info,
+            "persona_context": persona_context,
+            "matched_reasons": [],
+            "quality_scores": build_quality_scores(None, effective_preferences),
             "must_visit_pois_included": [],
             "must_visit_pois_missing": must_visit_pois or []
         }
@@ -779,6 +804,12 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
     route["relaxation_notice"] = relaxation_notice
     route["differentiation_reason"] = differentiation_reason
     route["pace_info"] = pace_info
+    persona_context = build_persona_context(effective_preferences)
+    matched_reasons = build_matched_reasons(route, effective_preferences)
+    quality_scores = build_quality_scores(route, effective_preferences)
+    route["persona_context"] = persona_context
+    route["matched_reasons"] = matched_reasons
+    route["quality_scores"] = quality_scores
 
     summary = generate_route_summary(option_type, route, user_prefs)
     is_valid_summary = validate_explanation(summary, route)
@@ -805,6 +836,9 @@ def generate_one_option(option_type, start_point, preferences, pois, user_prefs,
         "relaxation_notice": relaxation_notice,
         "differentiation_reason": differentiation_reason,
         "pace_info": pace_info,
+        "persona_context": persona_context,
+        "matched_reasons": matched_reasons,
+        "quality_scores": quality_scores,
         "must_visit_pois_included": route["must_visit_pois_included"],
         "must_visit_pois_missing": route["must_visit_pois_missing"],
         "summary_valid": is_valid_summary
@@ -918,6 +952,7 @@ def generate_route_plan(user_request):
 
     has_success_option = any(option.get("success") for option in options)
     pace_info = build_pace_info(preferences)
+    persona_context = build_persona_context(preferences)
 
     return {
         "success": has_success_option,
@@ -927,6 +962,7 @@ def generate_route_plan(user_request):
         "friends_center": friends_center,
         "preference_insight": preference_insight,
         "pace_info": pace_info,
+        "persona_context": persona_context,
         "options": options
     }
 
